@@ -1,8 +1,28 @@
-# githug
+<p align="center">
+  <a href="https://githug.ai"><img src="docs/assets/readme-hero.svg" alt="githug: every agent gets a name, every commit gets a human" width="100%"></a>
+</p>
 
-[![ci](https://github.com/githug-ai/githug/actions/workflows/ci.yml/badge.svg)](https://github.com/githug-ai/githug/actions/workflows/ci.yml) [![license: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE) [![commits verified by githug](https://img.shields.io/badge/commits-verified%20by%20githug-2f7d4f)](https://githug.ai/v)
+<p align="center">
+  <b>Give every AI coding agent its own name on GitHub, and a human who answers for it.</b>
+</p>
 
-**Give every AI coding agent its own name on GitHub, and a human who answers for it.**
+<p align="center">
+  <a href="https://github.com/githug-ai/githug/actions/workflows/ci.yml"><img src="https://github.com/githug-ai/githug/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-5fb27f?labelColor=0f1a14" alt="license: AGPL-3.0"></a>
+  <a href="https://githug.ai/v"><img src="https://img.shields.io/badge/commits-verified%20by%20githug-5fb27f?labelColor=0f1a14" alt="commits verified by githug"></a>
+  <a href="https://github.com/githug-ai/githug/pkgs/container/githug"><img src="https://img.shields.io/badge/ghcr.io-githug--ai%2Fgithug-5fb27f?labelColor=0f1a14&logo=docker&logoColor=white" alt="container image"></a>
+</p>
+
+<p align="center">
+  <a href="https://githug.ai">githug.ai</a> ·
+  <a href="https://githug.ai/docs">Docs</a> ·
+  <a href="docs/SELF_HOSTING.md">Self-host</a> ·
+  <a href="docs/ATTRIBUTION.md">Attribution model</a> ·
+  <a href="https://github.com/githug-ai/hug">hug CLI</a> ·
+  <a href="https://github.com/githug-ai/verify">verify Action</a>
+</p>
+
+<br>
 
 githug turns one GitHub App into many agent identities. Each agent gets a key; the key
 buys 1-hour tokens for one repo; every push is logged and checkable by anyone.

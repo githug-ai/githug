@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img" aria-labelledby="t d">
+  <title id="t">githug</title>
+  <desc id="d">Every agent gets a name. Every commit gets a human. A human launches an orchestrator agent, which spawns a worker, which pushes a verified commit carrying the chain in its trailers.</desc>
+  <style>
+    text { font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .fg { fill: #e8eee9; } .mute { fill: #93a39a; } .g { fill: #5fb27f; } .c { fill: #f26b4f; }
+    .cur { animation: blink 1.1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .cur { animation: none; } }
+  </style>
+
+  <rect x="0.5" y="0.5" width="1199" height="399" rx="20" fill="#0f1a14" stroke="#24342b"/>
+
+  <!-- wordmark: same drawn heart as public/favicon.svg -->
+  <g transform="translate(64 64) scale(0.44)">
+    <rect width="100" height="100" rx="22" fill="#2f7d4f"/>
+    <path d="M50 82 C 18 62 12 44 16 34 C 21 21 38 18 50 32 C 62 18 79 21 84 34 C 88 44 82 62 50 82 Z" fill="#fff"/>
+  </g>
+  <text x="124" y="98" class="fg" font-size="30" letter-spacing="-1">githug</text>
+
+  <text x="64" y="190" class="fg" font-size="34" letter-spacing="-1.5">Every agent gets a <tspan class="g">name.</tspan></text>
+  <text x="64" y="236" class="fg" font-size="34" letter-spacing="-1.5">Every commit gets a <tspan class="c">human.</tspan><tspan class="g cur">▌</tspan></text>
+
+  <text x="64" y="292" class="mute" font-size="16">1-hour, one-repo keys · attested pushes · verify any commit</text>
+  <text x="64" y="330" class="mute" font-size="14"><tspan class="g">●</tspan> open source · self-host free, or githug.ai runs it</text>
+
+  <!-- attribution chain card -->
+  <rect x="680" y="48" width="472" height="304" rx="14" fill="#14211a" stroke="#24342b"/>
+  <text x="704" y="80" class="mute" font-size="12">attribution chain</text>
+  <text x="1128" y="80" class="mute" font-size="12" text-anchor="end">run loop-0412</text>
+
+  <line x1="722" y1="112" x2="722" y2="256" stroke="#24342b" stroke-width="2"/>
+  <!-- the key travels down the chain, stopping at each node as it lights up -->
+  <circle class="packet" cx="722" cy="112" r="4" fill="#5fb27f">
+    <animate attributeName="cy" values="112;112;160;160;208;208;256;256" keyTimes="0;0.09;0.17;0.21;0.29;0.33;0.41;1" dur="8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.04;0.06;0.42;0.45;1" dur="8s" repeatCount="indefinite"/>
+  </circle>
+  <g font-size="15">
+    <g><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.05;0.09;0.92;1" dur="8s" repeatCount="indefinite"/>
+      <circle cx="722" cy="112" r="14" fill="#0f1a14" stroke="#f26b4f" stroke-width="2"/><text x="722" y="117" class="c" font-size="13" text-anchor="middle">a</text>
+      <text x="750" y="110" class="fg">ana</text>
+      <text x="750" y="127" class="mute" font-size="11.5">you · accountable</text>
+    </g>
+    <text x="1128" y="116" class="c" font-size="11.5" text-anchor="end">gets the credit<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.09;0.13;0.92;1" dur="8s" repeatCount="indefinite"/></text>
+    <g><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.17;0.21;0.92;1" dur="8s" repeatCount="indefinite"/>
+      <circle cx="722" cy="160" r="14" fill="#0f1a14" stroke="#5fb27f" stroke-width="2"/><text x="722" y="165" class="g" font-size="13" text-anchor="middle">o</text>
+      <text x="750" y="158" class="fg">orbit-agent[bot]</text>
+      <text x="750" y="175" class="mute" font-size="11.5">orchestrator</text>
+    </g>
+    <text x="1128" y="164" class="mute" font-size="11.5" text-anchor="end">1h · 1 repo<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.21000000000000002;0.25;0.92;1" dur="8s" repeatCount="indefinite"/></text>
+    <g><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.29;0.33;0.92;1" dur="8s" repeatCount="indefinite"/>
+      <circle cx="722" cy="208" r="14" fill="#0f1a14" stroke="#5fb27f" stroke-width="2" stroke-dasharray="3 3"/><text x="722" y="213" class="g" font-size="12" text-anchor="middle">w2</text>
+      <text x="750" y="206" class="fg">orbit-w2</text>
+      <text x="750" y="223" class="mute" font-size="11.5">worker · subset of parent</text>
+    </g>
+    <text x="1128" y="212" class="mute" font-size="11.5" text-anchor="end">no push to main<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.32999999999999996;0.37;0.92;1" dur="8s" repeatCount="indefinite"/></text>
+    <g><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.41;0.45;0.92;1" dur="8s" repeatCount="indefinite"/>
+      <circle cx="722" cy="256" r="14" fill="#5fb27f"/><text x="722" y="261" fill="#0f1a14" font-size="13" text-anchor="middle">#</text>
+      <text x="750" y="254" class="fg">9f3c1a7</text>
+      <text x="750" y="271" class="mute" font-size="11.5">commit</text>
+    </g>
+    <text x="1128" y="260" class="g" font-size="11.5" text-anchor="end">✓ verified<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.5;0.54;0.92;1" dur="8s" repeatCount="indefinite"/></text>
+  </g>
+  <!-- verified: a ring pulses out of the commit node -->
+  <circle cx="722" cy="256" r="14" fill="none" stroke="#5fb27f" stroke-width="2" opacity="0">
+    <animate attributeName="r" values="14;14;30;30" keyTimes="0;0.5;0.62;1" dur="8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0;0.9;0;0" keyTimes="0;0.5;0.51;0.62;1" dur="8s" repeatCount="indefinite"/>
+  </circle>
+
+  <line x1="704" y1="290" x2="1128" y2="290" stroke="#24342b"/>
+  <!-- trailers type out after the commit verifies -->
+  <clipPath id="type1"><rect x="704" y="300" height="20" width="424"><animate attributeName="width" values="0;0;424;424;0" keyTimes="0;0.55;0.66;0.92;1" dur="8s" repeatCount="indefinite"/></rect></clipPath>
+  <clipPath id="type2"><rect x="704" y="320" height="20" width="424"><animate attributeName="width" values="0;0;424;424;0" keyTimes="0;0.66;0.76;0.92;1" dur="8s" repeatCount="indefinite"/></rect></clipPath>
+  <text x="704" y="314" font-size="11.5" xml:space="preserve" clip-path="url(#type1)"><tspan class="mute">Accountable:</tspan> <tspan class="fg">ana</tspan>   <tspan class="mute">Agent-Chain:</tspan> <tspan class="fg">ana › orbit › orbit-w2</tspan></text>
+  <text x="704" y="334" font-size="11.5" xml:space="preserve" clip-path="url(#type2)"><tspan class="mute">Run:</tspan> <tspan class="fg">loop-0412</tspan>   <tspan class="mute">Attested:</tspan> <tspan class="fg">by orbit-w2's key</tspan></text>
+</svg>
