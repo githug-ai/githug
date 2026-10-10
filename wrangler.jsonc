@@ -1,7 +1,8 @@
 {
   // Local development (`npm run cf:dev`) and CI bundling. To deploy your own instance, use
   // scripts/self-host.sh, which creates the resources and writes wrangler.self.jsonc.
-  "name": "githug",
+  // Not "githug": a deploy from here must never replace githug.ai's Worker.
+  "name": "githug-dev",
   "main": "src/worker.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],

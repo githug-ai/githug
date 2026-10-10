@@ -7,9 +7,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json && tsc --noEmit -p tsconfig.node-host.json",
     "cf:dev": "wrangler dev",
-    "cf:deploy": "wrangler deploy",
     "cf:migrate:local": "wrangler d1 migrations apply githug --local",
-    "cf:migrate": "wrangler d1 migrations apply githug --remote",
     "cli:release": "sh scripts/release-hug.sh",
     "test": "node --disable-warning=ExperimentalWarning --import tsx --import ./test/md-hook.mjs --test test/*.test.ts",
     "test:cli": "cd cli && go test ./...",
