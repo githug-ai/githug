@@ -40,4 +40,5 @@ named `agent/<topic>`, push it, open the PR with `hug pr create --title "…"` (
 The production runbook (deploy, secrets, DNS, D1 ops), roadmap, pricing and outreach live in
 the private **githug-ai/ops** repo, checked out at `../githug-ops`. Read
 `../githug-ops/docs/INFRA.md` before touching githug.ai infra, and keep it current after
-infra changes. Deploy: `npm run cf:migrate && npm run cf:deploy`, then smoke-test prod.
+infra changes. githug.ai deploys from the private site repo (`../githug-site`, core is its
+submodule), never from here: merge to core's main, bump the submodule there, deploy there.
