@@ -1,0 +1,29 @@
+# Local variables for `wrangler dev` (copy to .dev.vars). In production: `wrangler secret put`.
+
+# The GitHub App. Either fill these, or leave them empty and create an App from
+# http://localhost:8787/gateway/setup/github-app (saved to your local D1, encrypted).
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=
+GITHUB_APP_SLUG=
+GITHUB_OAUTH_CLIENT_ID=
+GITHUB_OAUTH_CLIENT_SECRET=
+# Encrypts OAuth grants and saved App keys at rest: openssl rand -base64 32
+GATEWAY_ENC_KEY=
+
+# Setup page + /stats (HTTP Basic), and the admin API (Bearer, 32+ chars: openssl rand -hex 32)
+STATS_USER=admin
+STATS_PASSWORD=
+ADMIN_TOKEN=
+
+# Instance (src/site.ts). Leave unset for githug.ai's behavior.
+# GITHUG_MODE=self-hosted
+# GITHUG_ORIGIN=http://localhost:8787
+# GITHUG_AGENT_DOMAIN=agents.example.com
+# GITHUG_ADMIN=your-github-login
+# GITHUG_ALLOW=teammate,your-org
+
+# githug.ai only: the /ask Q&A (OpenRouter) and its retrieval tokens
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=openai/gpt-4o-mini
+GITHUB_TOKEN=
+HF_TOKEN=

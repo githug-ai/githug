@@ -1,0 +1,42 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:node
+      - name: Worker bundles
+        run: npx wrangler deploy --dry-run --outdir /tmp/worker
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t githug:ci .
+      - name: Starts, migrates, serves
+        run: |
+          docker run -d --name githug-ci -p 8080:8080 -e GITHUG_ORIGIN=http://localhost:8080 githug:ci
+          for i in $(seq 1 30); do curl -fs http://localhost:8080/docs >/dev/null && break; sleep 1; done
+          curl -fs http://localhost:8080/docs >/dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)" = 302
+          docker logs githug-ci
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: docker run --rm -v "$PWD":/repo zricethezav/gitleaks:v8.21.2 detect --source /repo --config /repo/.gitleaks.toml --redact

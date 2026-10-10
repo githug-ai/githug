@@ -1,0 +1,46 @@
+name: githug verify
+description: Fails a PR when a commit claims an AI agent but githug can't vouch for it (registered agent, accountable human, key minted for it).
+author: githug.ai
+branding:
+  icon: check-circle
+  color: green
+inputs:
+  github-token:
+    description: Token to read the PR's commits. The default workflow token is enough.
+    default: ${{ github.token }}
+  pull-request:
+    description: PR number. Defaults to the PR that triggered the workflow.
+    default: ${{ github.event.pull_request.number }}
+  githug-url:
+    description: githug API base URL.
+    default: https://githug.ai
+  require:
+    description: "claims (default): fail commits whose AI-agent claims don't check out; human commits pass. attested: every commit must be an attested githug agent commit, or a signed commit by someone in allow-humans."
+    default: claims
+  allow-humans:
+    description: "With require: attested, comma-separated GitHub logins whose signed (GitHub-verified) commits pass."
+    default: ""
+  fail-on-error:
+    description: Fail the check when githug can't be reached. By default it passes with a warning, so an outage never blocks your PRs.
+    default: "false"
+outputs:
+  agent-commits:
+    description: Commits in the PR that claim an AI agent.
+    value: ${{ steps.verify.outputs.agent-commits }}
+  failing:
+    description: Agent commits githug could not verify.
+    value: ${{ steps.verify.outputs.failing }}
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        PR: ${{ inputs.pull-request }}
+        GITHUG_URL: ${{ inputs.githug-url }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        REQUIRE: ${{ inputs.require }}
+        ALLOW_HUMANS: ${{ inputs.allow-humans }}
+      run: ${{ github.action_path }}/verify.sh

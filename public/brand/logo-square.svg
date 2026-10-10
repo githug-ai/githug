@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Full-bleed square for avatars (GitHub rounds/crops it itself). Same heart as /favicon.svg. -->
+  <rect width="100" height="100" fill="#2f7d4f"/>
+  <path d="M50 78 C 20 59 15 43 19 34 C 23 22 39 19 50 32 C 61 19 77 22 81 34 C 85 43 80 59 50 78 Z" fill="#fff"/>
+</svg>

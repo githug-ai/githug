@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/githug-ai/githug/security/advisories/new
+    about: Report privately, please.
+  - name: hug CLI
+    url: https://github.com/githug-ai/hug/issues
+    about: Issues with the hug command-line tool.
+  - name: verify Action
+    url: https://github.com/githug-ai/verify/issues
+    about: Issues with the githug verify GitHub Action.

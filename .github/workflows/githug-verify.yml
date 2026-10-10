@@ -1,0 +1,15 @@
+# We use githug ourselves: every commit in a PR must be pushed by a githug agent (attested
+# with its key) or be a signed commit by a maintainer. Required on main.
+name: githug verify
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: githug-ai/verify@v1
+        with:
+          require: attested
+          allow-humans: dereksantos

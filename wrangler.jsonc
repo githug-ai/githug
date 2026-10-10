@@ -1,0 +1,34 @@
+{
+  // Local development (`npm run cf:dev`) and CI bundling. To deploy your own instance, use
+  // scripts/self-host.sh, which creates the resources and writes wrangler.self.jsonc.
+  "name": "githug",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static files (public/) are served by the platform; "/" runs the Worker (it redirects to /app).
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/"] },
+
+  // Docs pages (content/docs/*.md) are imported as raw strings — see src/docs.ts.
+  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
+
+  // Local placeholders; wrangler dev keeps their data under .wrangler/.
+  "kv_namespaces": [{ "binding": "CACHE", "id": "00000000000000000000000000000000" }],
+  "d1_databases": [{ "binding": "DB", "database_name": "githug", "database_id": "00000000-0000-0000-0000-000000000000" }],
+  "r2_buckets": [{ "binding": "RELEASES", "bucket_name": "githug-releases" }],
+
+  // Per-IP rate limiting (period must be 10 or 60 seconds).
+  "ratelimits": [
+    { "name": "WRITE_LIMITER", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
+    // /v1/verify per IP, above any one repo's own limit: GitHub runners share IPs.
+    { "name": "VERIFY_LIMITER", "namespace_id": "1003", "simple": { "limit": 300, "period": 60 } }
+  ],
+
+  // Agent scope re-checks and PR-outcome sync (src/core.ts → scheduled).
+  "triggers": { "crons": ["17 */4 * * *"] },
+
+  // Secrets: see .dev.vars.example (local) and docs/SELF_HOSTING.md.
+  "vars": { "GITHUG_MODE": "self-hosted" },
+
+  "observability": { "enabled": true }
+}

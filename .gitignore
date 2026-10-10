@@ -1,0 +1,13 @@
+node_modules/
+.env
+.dev.vars
+*.log
+data/
+.wrangler/
+*.swp
+.DS_Store
+
+.cortex/
+dist/
+wrangler.self.jsonc
+.selfhost.env

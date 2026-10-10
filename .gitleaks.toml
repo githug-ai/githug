@@ -1,0 +1,18 @@
+# Secret scan config (CI runs gitleaks over every PR). Known non-secrets only:
+[extend]
+useDefault = true
+
+[allowlist]
+description = "public values"
+paths = [
+  '''(^|/)dist/''',
+  '''(^|/)\.wrangler/''',
+]
+regexes = [
+  # the PEM armor in pkcs1ToPkcs8Pem's template, not a key
+  '''-----BEGIN PRIVATE KEY-----\\n\$\{''',
+  # IndexNow key: public by design, served at /<key>.txt
+  '''c46574370453c544f907538ca7e6bdba017680a1c493386b''',
+  # GitHub App OAuth client id: public, like any OAuth client id
+  '''Iv23liDOov4dYldLbiJL''',
+]

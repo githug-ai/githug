@@ -1,0 +1,18 @@
+# githug, self-hosted in one container. Put it behind your TLS proxy (Caddy, Traefik, nginx)
+# and set GITHUG_ORIGIN to the public https URL. See docs/SELF_HOSTING.md.
+services:
+  githug:
+    image: ghcr.io/githug-ai/githug:0.1.0   # pin; see the releases page for newer
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - githug-data:/data
+    environment:
+      GITHUG_ORIGIN: https://githug.example.com
+      GITHUG_TRUST_PROXY: "1"
+      # GITHUG_ADMIN: your-github-login       # else: whoever creates the GitHub App
+      # GITHUG_ALLOW: teammate,your-org       # who else may sign in
+volumes:
+  githug-data:

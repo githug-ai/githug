@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in githug doesn't work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Security issue? Don't file it here: see SECURITY.md."
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options: [githug.ai, self-hosted (container), self-hosted (Cloudflare), local dev]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. hug init --repo …\n2. git push\n3. …"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or logs
+      description: Remove keys and tokens (ghg_…, hug_…, ghs_…) first.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Container image tag or commit; `hug version` if the CLI is involved."

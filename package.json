@@ -1,0 +1,32 @@
+{
+  "name": "githug",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "githug: per-agent GitHub identities for AI coding agents. Self-hostable (AGPL-3.0).",
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json && tsc --noEmit -p tsconfig.node-host.json",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy",
+    "cf:migrate:local": "wrangler d1 migrations apply githug --local",
+    "cf:migrate": "wrangler d1 migrations apply githug --remote",
+    "cli:release": "sh scripts/release-hug.sh",
+    "test": "node --disable-warning=ExperimentalWarning --import tsx --import ./test/md-hook.mjs --test test/*.test.ts",
+    "test:cli": "cd cli && go test ./...",
+    "build:node": "esbuild src/node/main.ts --bundle --platform=node --format=esm --target=node22 --loader:.md=text --outfile=dist/githug.mjs --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\" --log-level=warning",
+    "start:node": "node --disable-warning=ExperimentalWarning dist/githug.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.12.26",
+    "marked": "^18.0.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260621.1",
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.103.0",
+    "esbuild": "^0.28.1"
+  },
+  "license": "AGPL-3.0-only"
+}
