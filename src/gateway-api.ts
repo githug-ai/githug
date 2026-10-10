@@ -232,14 +232,30 @@ async function gh(path: string, token: string, init: RequestInit = {}): Promise<
 // ---------------------------------------------------------------------------
 
 /** Which installation of the app covers this repo (cached 1h). Throws if the app isn't installed there. */
-export async function installationForRepo(env: GatewayEnv, repo: string): Promise<number> {
+export async function installationForRepo(env: GatewayEnv, repo: string, fresh = false): Promise<number> {
   const cacheKey = `gw:inst:${repo.toLowerCase()}`;
-  const hit = await env.CACHE.get(cacheKey);
+  const hit = fresh ? null : await env.CACHE.get(cacheKey);
   if (hit) return Number(hit);
   const data = await gh(`/repos/${repo}/installation`, await appJwt(env));
   const id = Number(data.id);
   await env.CACHE.put(cacheKey, String(id), { expirationTtl: 3600 });
   return id;
+}
+
+/**
+ * Runs fn with the repo's installation. A cached installation can be stale (the App was
+ * uninstalled and reinstalled, so the id changed): on a GitHub 404, look it up again once.
+ */
+async function withInstallation<T>(env: GatewayEnv, repo: string, fn: (installationId: number) => Promise<T>): Promise<T> {
+  const id = await installationForRepo(env, repo);
+  try {
+    return await fn(id);
+  } catch (e) {
+    if (!/^GitHub 404/.test((e as Error).message)) throw e;
+    const fresh = await installationForRepo(env, repo, true);
+    if (fresh === id) throw e;
+    return fn(fresh);
+  }
 }
 
 export interface MintedToken {
@@ -858,16 +874,17 @@ export async function pollDeviceFlow(env: GatewayEnv, deviceCode: string): Promi
 const READ_PERMISSIONS = { contents: "read", pull_requests: "read", metadata: "read" };
 
 async function readToken(env: GatewayEnv, repo: string): Promise<string> {
-  const installationId = await installationForRepo(env, repo);
-  const key = `gw:rtok:${installationId}`;
-  const hit = await env.CACHE.get(key);
-  if (hit) return hit;
-  const data = await gh(`/app/installations/${installationId}/access_tokens`, await appJwt(env), {
-    method: "POST",
-    body: JSON.stringify({ permissions: READ_PERMISSIONS }),
+  return withInstallation(env, repo, async (installationId) => {
+    const key = `gw:rtok:${installationId}`;
+    const hit = await env.CACHE.get(key);
+    if (hit) return hit;
+    const data = await gh(`/app/installations/${installationId}/access_tokens`, await appJwt(env), {
+      method: "POST",
+      body: JSON.stringify({ permissions: READ_PERMISSIONS }),
+    });
+    await env.CACHE.put(key, data.token, { expirationTtl: 50 * 60 });
+    return data.token;
   });
-  await env.CACHE.put(key, data.token, { expirationTtl: 50 * 60 });
-  return data.token;
 }
 
 /**
@@ -1407,8 +1424,10 @@ export async function mintForAgent(env: GatewayEnv, agent: AgentRow, repo: strin
       console.error(`named mint for ${agent.id} failed, using shared App:`, (e as Error).message);
     }
   }
-  const installationId = await installationForRepo(env, repo);
-  const minted = await mintInstallationToken(env, installationId, repo, permissions ?? undefined);
+  const { minted, installationId } = await withInstallation(env, repo, async (installationId) => ({
+    minted: await mintInstallationToken(env, installationId, repo, permissions ?? undefined),
+    installationId,
+  }));
   return { ...minted, installation_id: installationId, bot: await botIdentity(env, minted.token), named: false };
 }
 
