@@ -129,6 +129,7 @@ export class FakeGitHub {
       return id ? this.json({ id }) : this.json({ message: "Not Found" }, 404);
     }
     if ((m = /^\/app\/installations\/(\d+)\/access_tokens$/.exec(p)) && method === "POST") {
+      if (![...this.appInstallations.values()].includes(Number(m[1]))) return this.json({ message: "Not Found" }, 404);
       const body = JSON.parse(String(init.body ?? "{}"));
       this.minted.push({ installation: Number(m[1]), body });
       return this.json({ token: `ghs_${this.minted.length}`, expires_at: new Date(Date.now() + 3600_000).toISOString(), permissions: body.permissions ?? {} }, 201);

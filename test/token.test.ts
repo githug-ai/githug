@@ -90,3 +90,13 @@ test("graph credit on adds Co-authored-by; workflows opt-in adds workflows: writ
   const row = (await env.DB.prepare("SELECT permissions FROM gateway_agents WHERE id = 'orbit-w1'").first()) as any;
   assert.equal(JSON.parse(row.permissions).workflows, undefined, "turning it off removes it from sub-agents");
 });
+
+test("a reinstalled App (new installation id) mints at once, not after the cache expires", async (t) => {
+  const { gh, env, auth } = await setup(t);
+  assert.equal((await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: auth })).status, 200);
+  // uninstall + reinstall: GitHub gives the repo a new installation id; ours is cached
+  for (const r of ["ana/api", "ana/web"]) gh.appInstallations.set(r, 8);
+  const res = await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: auth });
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.equal(gh.minted.at(-1)!.installation, 8);
+});
