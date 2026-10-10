@@ -23,4 +23,6 @@ jobs:
           path-to-signatures: signatures/version1/cla.json
           path-to-document: https://github.com/githug-ai/githug/blob/main/CLA.md
           branch: cla-signatures
-          allowlist: dependabot[bot],githug
+          # githug agents (claude, answers, site) aren't GitHub users and can't sign; each one's
+          # commits carry an Accountable: trailer naming the maintainer, who holds the copyright.
+          allowlist: dependabot[bot],githug,claude,answers,site
