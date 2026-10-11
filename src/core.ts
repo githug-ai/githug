@@ -769,6 +769,8 @@ app.get("/v/:owner/:repo/:sha", async (c) => {
   return c.html(verifyPage(repo, sha, result as any));
 });
 
+// Each outcome is logged as a /evt/device/* page view (start, approved, denied, expired, error,
+// not-allowed) so the signup funnel shows people who reached GitHub and stopped; pending polls aren't.
 // `hug init` / `hug login` (M1.5): GitHub's device flow, proxied so the human's GitHub
 // token stays server-side. The CLI shows the user code; the human approves on github.com;
 // the CLI polls /v1/device/token and gets back an account key (hug_…), never the GitHub token.
@@ -776,6 +778,7 @@ app.post("/v1/device/code", async (c) => {
   if (!(await c.env.WRITE_LIMITER.limit({ key: `dev:${c.req.header("cf-connecting-ip") ?? "unknown"}` })).success) return c.json({ error: "rate limited" }, 429);
   try {
     const d = await startDeviceFlow(c.env);
+    track(c, "/evt/device/start");
     return c.json({ ...d, install_url: `${SITE_ORIGIN}/app/install` });
   } catch (e) {
     console.error("device code failed:", (e as Error).message);
@@ -794,13 +797,18 @@ app.post("/v1/device/token", async (c) => {
     if ("pending" in r) return c.json({ status: r.pending }, 202);
     const user = await fetchGithubUser(r.grant.access_token);
     await upsertGatewayUser(c.env, { login: user.login, github_id: user.id, email: user.email, access_token: r.grant.access_token, refresh_token: r.grant.refresh_token ?? null, expires_in: r.grant.expires_in ?? null });
-    if (!(await mayJoin(c.env, user))) return c.json({ error: `${user.login} isn't on this githug instance's list; ask its admin to add you` }, 403);
+    if (!(await mayJoin(c.env, user))) {
+      track(c, "/evt/device/not-allowed");
+      return c.json({ error: `${user.login} isn't on this githug instance's list; ask its admin to add you` }, 403);
+    }
     const accountId = await upsertAccount(c.env.DB, { login: user.login, github_id: user.id }, "agent");
     const key = await createAccountKey(c.env.DB, accountId, String(body?.name ?? "hug").slice(0, 80));
+    track(c, "/evt/device/approved");
     return c.json({ status: "ok", account_key: key, login: user.login, account_id: accountId, install_url: `${SITE_ORIGIN}/app/install` });
   } catch (e) {
     const msg = (e as Error).message;
     console.error("device token failed:", msg);
+    track(c, `/evt/device/${/denied/i.test(msg) ? "denied" : /expired/i.test(msg) ? "expired" : "error"}`);
     return c.json({ error: /expired|denied/i.test(msg) ? msg : "Could not complete GitHub device login." }, 400);
   }
 });
