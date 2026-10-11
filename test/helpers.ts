@@ -84,7 +84,7 @@ export class FakeGitHub {
   /** repo (lowercase) → installation id of the shared App */
   appInstallations = new Map<string, number>();
   minted: { installation: number; body: any }[] = [];
-  codes = new Map<string, string>(); // OAuth code → token
+  codes = new Map<string, string>(); // OAuth or device code → token ("expired" fails the grant)
   calls: string[] = [];
   /** "owner/repo@sha" → GitHub's view of a commit (author account, signature). */
   commitInfo = new Map<string, { login: string | null; verified: boolean }>();
@@ -107,8 +107,12 @@ export class FakeGitHub {
     this.calls.push(`${method} ${url.pathname}`);
     if (url.host === "github.com" && url.pathname === "/login/oauth/access_token") {
       const body = JSON.parse(String(init.body ?? "{}"));
-      const token = this.codes.get(body.code);
+      const token = this.codes.get(body.code ?? body.device_code);
+      if (token === "expired") return this.json({ error: "expired_token", error_description: "The device code has expired" });
       return token ? this.json({ access_token: token, expires_in: 28800, refresh_token: "ghr_x" }) : this.json({ error: "bad_verification_code" });
+    }
+    if (url.host === "github.com" && url.pathname === "/login/device/code") {
+      return this.json({ device_code: "dev_fake_0001", user_code: "ABCD-1234", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
     }
     if (url.host !== "api.github.com") return this.json({ message: `unexpected host ${url.host}` }, 500);
     if (/^\/app-manifests\/[^/]+\/conversions$/.test(url.pathname) && method === "POST") {
