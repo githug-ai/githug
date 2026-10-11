@@ -44,6 +44,7 @@ import {
   syncPrOutcomes,
   rotateAgentKey,
   setAgentCredit,
+  addAgentRepos,
   setAgentWorkflows,
   findAccountAgent,
   agentRuns,
@@ -350,13 +351,19 @@ app.get("/app/install", async (c) => {
   return c.redirect(installUrl(c.env, await createOAuthState(c.env.CACHE, "/app?installed=1")), 302);
 });
 
+/** Why the account can't put an agent on these repos (not installed, or no push), or null if it can. */
+async function reposNotAllowed(c: any, account: Account, repos: string[]): Promise<string | null> {
+  const allowed = new Set((await accountRepos(c.env, account, true)).map((r) => r.repo.toLowerCase()));
+  const missing = repos.filter((r) => !allowed.has(r.toLowerCase()));
+  return missing.length ? `githug isn't installed on ${missing.join(", ")} for your account.` : null;
+}
+
 /** Creates an agent owned by the account, on repos the account's human can see in an installation. */
 async function createAccountAgent(c: any, account: Account, id: string, repos: string[], creditHuman = false) {
   if (!AGENT_ID_RE.test(id)) return { error: "Agent names are lowercase letters, digits and dashes." };
   if (!repos.length || !repos.every(validRepo)) return { error: "Pick a repository." };
-  const allowed = new Set((await accountRepos(c.env, account, true)).map((r) => r.repo.toLowerCase()));
-  const missing = repos.filter((r) => !allowed.has(r.toLowerCase()));
-  if (missing.length) return { error: `githug isn't installed on ${missing.join(", ")} for your account.` };
+  const notAllowed = await reposNotAllowed(c, account, repos);
+  if (notAllowed) return { error: notAllowed };
   try {
     // An org owns the agent; the human creating it is the one accountable for it.
     return await createAgent(c.env.DB, { id, name: id, repos, accountable: account.actor ?? account.login, accountable_id: account.actorId ?? null, account_id: account.id, credit_human: creditHuman });
@@ -499,6 +506,27 @@ app.post("/v1/agents/:id/credit", async (c) => {
   const owned = await findAccountAgent(c.env.DB, id, account.id);
   const ok = owned && (await canManage(c, account, owned)) ? await setAgentCredit(c.env.DB, id, body.on, account.id) : false;
   return ok ? c.json({ ok: true, credit_human: body.on }) : c.json({ error: "no such agent" }, 404);
+});
+
+// Puts an agent on more repos, on the same terms as creating one (the account's human can push
+// to each, in an installation). Sub-agents keep the subset they were spawned with.
+app.post("/v1/agents/:id/repos", async (c) => {
+  const account = await currentAccount(c);
+  if (!account || !sameOrigin(c)) return c.json({ error: "unauthorized" }, 401);
+  if (!(await c.env.WRITE_LIMITER.limit({ key: `app:${account.id}` })).success) return c.json({ error: "rate limited" }, 429);
+  const body = await c.req.json().catch(() => ({}) as any);
+  const repos: unknown[] = Array.isArray(body?.repos) ? body.repos : [];
+  if (!repos.length || !repos.every(validRepo)) return c.json({ error: "repos must be a non-empty list of owner/repo" }, 400);
+  const id = c.req.param("id").toLowerCase();
+  const owned = await findAccountAgent(c.env.DB, id, account.id);
+  if (!owned || !(await canManage(c, account, owned))) return c.json({ error: "no such agent" }, 404);
+  if (owned.parent) return c.json({ error: `'${id}' is a sub-agent; it works on a subset of its parent's repos. Add the repo to the top-level agent and spawn a new sub-agent.` }, 400);
+  const notAllowed = await reposNotAllowed(c, account, repos as string[]);
+  if (notAllowed) return c.json({ error: notAllowed }, 400);
+  const had = new Set(owned.repos.map((r) => r.toLowerCase()));
+  const updated = await addAgentRepos(c.env.DB, id, repos as string[], account.id);
+  if (!updated) return c.json({ error: "no such agent" }, 404);
+  return c.json({ ok: true, agent: id, repos: updated, added: updated.filter((r) => !had.has(r.toLowerCase())) });
 });
 
 app.post("/app/agents/:id/rotate", async (c) => {
@@ -965,7 +993,7 @@ app.post("/v1/token", async (c) => {
   if (!(await c.env.WRITE_LIMITER.limit({ key: `tokagent:${agent.id}` })).success) return c.json({ error: "rate limited" }, 429);
   const body = await c.req.json().catch(() => ({}) as any);
   const repo = typeof body?.repo === "string" ? body.repo : agent.repos.length === 1 ? agent.repos[0] : "";
-  if (!validRepo(repo)) return c.json({ error: "repo required (owner/repo)" }, 400);
+  if (!validRepo(repo)) return c.json({ error: `repo required (owner/repo): '${agent.id}' works on ${agent.repos.join(", ")}` }, 400);
   if (!agent.repos.some((r) => r.toLowerCase() === repo.toLowerCase())) return c.json({ error: `agent '${agent.id}' is not allowed on ${repo}` }, 403);
   // Optional loop/run id: ties every action taken with this token back to the run.
   const run = String(body?.run ?? "").slice(0, 120);

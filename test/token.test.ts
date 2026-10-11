@@ -100,3 +100,33 @@ test("a reinstalled App (new installation id) mints at once, not after the cache
   assert.equal(res.status, 200, await res.clone().text());
   assert.equal(gh.minted.at(-1)!.installation, 8);
 });
+
+test("an account can put its agent on more repos it can push to, and the key then mints for them", async (t) => {
+  const { gh, env, s, auth } = await setup(t);
+  const add = (id: string, repos: unknown, headers: Record<string, string> = s.bearer) => call(env, "POST", `/v1/agents/${id}/repos`, { body: { repos }, headers });
+
+  // Before: one repo, so a token request without a repo defaults to it; after, it must name one.
+  const res = await add("orbit", ["ana/web", "ANA/api"]);
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.deepEqual(await res.json(), { ok: true, agent: "orbit", repos: ["ana/api", "ana/web"], added: ["ana/web"] });
+  assert.equal((await call(env, "POST", "/v1/token", { body: { repo: "ana/web" }, headers: auth })).status, 200);
+  const noRepo = await call(env, "POST", "/v1/token", { body: {}, headers: auth });
+  assert.equal(noRepo.status, 400);
+  assert.match(((await noRepo.json()) as any).error, /works on ana\/api, ana\/web/);
+
+  // Adding again is a no-op.
+  assert.deepEqual(((await (await add("orbit", ["ana/web"])).json()) as any).added, []);
+
+  // Not installed / no push, bad input, someone else's agent, an agent key, a sub-agent: refused.
+  assert.match(((await (await add("orbit", ["ana/secret"])).json()) as any).error, /isn't installed on ana\/secret/);
+  assert.equal((await add("orbit", [])).status, 400);
+  assert.equal((await add("orbit", ["not a repo"])).status, 400);
+  const bo = gh.addUser({ login: "bo", id: 202, installations: [{ id: 8, account: { login: "bo", id: 202, type: "User" }, repos: [repo("bo/x", "admin")] }] });
+  assert.equal((await add("orbit", ["bo/x"], (await signIn(env, bo)).bearer)).status, 404);
+  assert.equal((await add("orbit", ["ana/web"], auth)).status, 401, "an agent can't widen its own scope");
+  const child = await call(env, "POST", "/v1/agents/children", { body: { name: "w1", repos: ["ana/api"] }, headers: auth });
+  assert.equal(child.status, 200, await child.clone().text());
+  const subAdd = await add("orbit-w1", ["ana/web"]);
+  assert.equal(subAdd.status, 400);
+  assert.match(((await subAdd.json()) as any).error, /sub-agent/);
+});

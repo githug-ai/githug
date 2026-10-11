@@ -4,7 +4,7 @@
 //
 //	hug init --repo owner/repo [--agent name] [--json]   log in + create an agent, ready to push
 //	hug login [--json]                                   device login only
-//	hug repos | hug agent list | hug agent create NAME --repo owner/repo
+//	hug repos | hug agent list | create | add-repo | spawn
 //	hug token [--repo r] [--run id]                      print a 1-hour, one-repo GitHub token
 //	hug env   [--repo r] [--run id]                      print exports: GH_TOKEN, git author, trailers
 //	hug setup | hug run -- cmd | hug pr create            push/commit/PR as the agent from a clone (M2)
@@ -47,9 +47,11 @@ func main() {
 }
 
 func run(args []string) error {
+	if path, ok := helpPath(args); ok {
+		return printHelp(path)
+	}
 	if len(args) == 0 {
-		usage()
-		return nil
+		return printHelp("")
 	}
 	cmd, rest := args[0], args[1:]
 	switch cmd {
@@ -61,17 +63,19 @@ func run(args []string) error {
 		return cmdRepos(rest)
 	case "agent":
 		if len(rest) == 0 {
-			return errors.New("usage: hug agent list | hug agent create NAME --repo owner/repo | hug agent spawn NAME")
+			return usageError("agent")
 		}
 		switch rest[0] {
 		case "list":
 			return cmdAgentList(rest[1:])
 		case "create":
 			return cmdAgentCreate(rest[1:])
+		case "add-repo":
+			return cmdAgentAddRepo(rest[1:])
 		case "spawn":
 			return cmdAgentSpawn(rest[1:])
 		}
-		return fmt.Errorf("unknown agent command %q", rest[0])
+		return fmt.Errorf("unknown agent command %q\n  (see `hug agent --help`)", rest[0])
 	case "setup":
 		return cmdSetup(rest)
 	case "credential":
@@ -91,43 +95,8 @@ func run(args []string) error {
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, "hug", version)
 		return nil
-	case "help", "--help", "-h":
-		usage()
-		return nil
 	}
 	return fmt.Errorf("unknown command %q (try `hug help`)", cmd)
-}
-
-func usage() {
-	fmt.Fprint(stdout, `hug — give your coding agent its own name on GitHub (githug.ai)
-
-  hug init --repo owner/repo [--agent name] [--url https://githug.example.com] [--json]
-      Log in (a human approves one code on github.com), make sure githug is installed
-      on the repo, create the agent and save its key. Ready to push. --url points hug
-      at a self-hosted githug (saved; GITHUG_URL overrides it). --graph-credit adds
-      Co-authored-by for you, so the agent's commits count on your GitHub graph (off by default).
-  hug setup [--agent name]
-      In a clone: plain git push works as the agent (fresh token per push), commits
-      are authored as the agent, and a hook adds the trailers.
-  hug run -- <command>
-      Run an agent command with one run id for all its keys and commits.
-  hug pr create --title T [--body B | --body-file F] [--base main] [--label L] [--draft]
-      Open a PR with you as author and the agent in the footer, with a verify link.
-      --as agent: the agent's bot is the author, so you can still approve it.
-  hug attest [--repo owner/repo] [rev…]
-      Report commits to githug with the agent's key before pushing them some other way
-      (CI, hug env), so they show as verified. hug setup's pre-push hook does it for you.
-  hug env [--repo owner/repo] [--run id]
-      Print exports for a fresh 1-hour token: eval "$(hug env)"
-  hug token [--repo owner/repo] [--run id] [--json]
-  hug agent spawn NAME [--repo owner/repo] [--env]
-      As an agent: create a sub-agent for a worker (named <agent>-NAME, same human,
-      a subset of your repos). --env prints its GITHUG_AGENT_KEY export.
-  hug login | hug repos | hug agent list | hug agent create NAME --repo owner/repo
-  hug version
-
-Agents: GITHUG_AGENT_KEY picks the agent; --json prints one JSON object per line.
-`)
 }
 
 // parse lets flags and positionals mix ("create NAME --repo x" and "create --repo x NAME").
@@ -136,7 +105,7 @@ func parse(fs *flag.FlagSet, args []string) ([]string, error) {
 	var pos []string
 	for {
 		if err := fs.Parse(args); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%v\n  (see `hug %s --help`)", err, fs.Name())
 		}
 		args = fs.Args()
 		if len(args) == 0 {
@@ -297,10 +266,13 @@ func cmdInit(args []string) error {
 	if err := waitForRepo(cfg, c, o, *repoF, *wait); err != nil {
 		return err
 	}
-	if _, ok := cfg.Agents[name]; !ok {
-		if err := createAgent(cfg, c, name, *repoF, *graphCredit); err != nil {
+	if _, ok := cfg.Agents[name]; ok {
+		// An agent this machine already has a key for: put it on the repo (no-op if it's there).
+		if _, err := addRepos(cfg, c, o, name, []string{*repoF}); err != nil {
 			return err
 		}
+	} else if err := createAgent(cfg, c, name, *repoF, *graphCredit); err != nil {
+		return err
 	}
 	cfg.DefaultAgent = name
 	if err := cfg.save(); err != nil {
@@ -451,7 +423,7 @@ func cmdAgentCreate(args []string) error {
 		return err
 	}
 	if len(pos) != 1 || !agentRE.MatchString(pos[0]) || !repoRE.MatchString(*repoF) {
-		return errors.New("usage: hug agent create NAME --repo owner/repo")
+		return usageError("agent create")
 	}
 	cfg, c, err := accountClient(*asJSON)
 	if err != nil {
@@ -468,6 +440,77 @@ func cmdAgentCreate(args []string) error {
 	}
 	out{*asJSON}.event("agent_created", map[string]any{"agent": pos[0], "repo": *repoF}, "Created "+pos[0]+"; its key is saved on this machine.")
 	return nil
+}
+
+func cmdAgentAddRepo(args []string) error {
+	fs := flag.NewFlagSet("agent add-repo", flag.ContinueOnError)
+	var repos []string
+	fs.Func("repo", "", func(v string) error { repos = append(repos, v); return nil })
+	wait := fs.Duration("wait", 10*time.Minute, "")
+	asJSON := fs.Bool("json", false, "")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 || !agentRE.MatchString(pos[0]) || len(repos) == 0 {
+		return usageError("agent add-repo")
+	}
+	for _, r := range repos {
+		if !repoRE.MatchString(r) {
+			return fmt.Errorf("--repo must be owner/repo, got %q", r)
+		}
+	}
+	cfg, c, err := accountClient(*asJSON)
+	if err != nil {
+		return err
+	}
+	o := out{*asJSON}
+	for _, r := range repos {
+		if err := waitForRepo(cfg, c, o, r, *wait); err != nil {
+			return err
+		}
+	}
+	name := pos[0]
+	all, err := addRepos(cfg, c, o, name, repos)
+	if err != nil {
+		return err
+	}
+	// Inside a clone of an added repo with this agent's key here: set the clone up too.
+	if _, ok := cfg.Agents[name]; ok {
+		here := repoFromRemote()
+		for _, r := range repos {
+			if strings.EqualFold(here, r) {
+				if err := cmdSetup([]string{"--agent", name, "--repo", here}); err != nil {
+					fmt.Fprintln(stderr, "  hug setup:", err)
+				}
+				return nil
+			}
+		}
+	}
+	o.event("ready", map[string]any{"agent": name, "repos": all, "next": "in a clone of an added repo: hug setup --agent " + name},
+		"  Next, in a clone of an added repo: hug setup --agent "+name)
+	return nil
+}
+
+// addRepos puts an existing agent on more repos and returns its full list.
+func addRepos(cfg *Config, c *client, o out, name string, repos []string) ([]string, error) {
+	var r struct {
+		Repos []string `json:"repos"`
+		Added []string `json:"added"`
+	}
+	if _, err := c.do("POST", "/v1/agents/"+name+"/repos", cfg.AccountKey, map[string]any{"repos": repos}, &r); err != nil {
+		var ae *apiError
+		if errors.As(err, &ae) && ae.Status == 404 {
+			return nil, fmt.Errorf("no agent %q on your account (see `hug agent list`)", name)
+		}
+		return nil, err
+	}
+	msg := fmt.Sprintf("  %s already works on %s.", name, strings.Join(repos, ", "))
+	if len(r.Added) > 0 {
+		msg = fmt.Sprintf("  Added %s to %s; it now works on %s.", strings.Join(r.Added, ", "), name, strings.Join(r.Repos, ", "))
+	}
+	o.event("repos_added", map[string]any{"agent": name, "added": r.Added, "repos": r.Repos}, msg)
+	return r.Repos, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -552,7 +595,7 @@ func cmdAgentSpawn(args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: hug agent spawn NAME [--repo owner/repo] [--env]")
+		return usageError("agent spawn")
 	}
 	cfg, err := loadConfig()
 	if err != nil {

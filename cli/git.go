@@ -393,7 +393,7 @@ func cmdRun(args []string) error {
 		args = args[1:]
 	}
 	if len(args) == 0 {
-		return errors.New("usage: hug run -- <command> [args…]")
+		return usageError("run")
 	}
 	run := os.Getenv("GITHUG_RUN")
 	if run == "" {
@@ -419,7 +419,7 @@ func cmdRun(args []string) error {
 
 func cmdPR(args []string) error {
 	if len(args) == 0 || args[0] != "create" {
-		return errors.New("usage: hug pr create --title T [--body B | --body-file F] [--head branch] [--base main] [--as human|agent] [--label L] [--draft] [--json]")
+		return usageError("pr create")
 	}
 	fs := flag.NewFlagSet("pr create", flag.ContinueOnError)
 	title := fs.String("title", "", "")

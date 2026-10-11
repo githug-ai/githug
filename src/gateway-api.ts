@@ -1559,6 +1559,26 @@ export async function setAgentCredit(db: D1Database, id: string, on: boolean, ac
 }
 
 /**
+ * Adds repos to an account's agent, keeping the ones it has (case-insensitive). The write is
+ * conditional on the list it read, so two concurrent adds can't drop each other's repos.
+ * Returns the new list, or null if the account has no such agent.
+ */
+export async function addAgentRepos(db: D1Database, id: string, repos: string[], accountId: string): Promise<string[] | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await db.prepare("SELECT repos FROM gateway_agents WHERE id = ? AND account_id = ?").bind(id, accountId).first<any>();
+    if (!r) return null;
+    const have: string[] = r.repos ? JSON.parse(r.repos) : [];
+    const seen = new Set(have.map((x) => x.toLowerCase()));
+    const next = [...have];
+    for (const x of repos) if (!seen.has(x.toLowerCase())) (seen.add(x.toLowerCase()), next.push(x));
+    if (next.length === have.length) return have;
+    const u = await db.prepare("UPDATE gateway_agents SET repos = ? WHERE id = ? AND account_id = ? AND repos IS ?").bind(JSON.stringify(next), id, accountId, r.repos).run();
+    if ((u.meta?.changes ?? 0) > 0) return next;
+  }
+  throw new Error("agent repos changed concurrently");
+}
+
+/**
  * Lets an account's agent change GitHub Actions workflows (or stops it). Turning it off also
  * removes it from every sub-agent below, so a child never keeps more than its parent has.
  */
