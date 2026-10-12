@@ -8,6 +8,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { escapeHtml } from "./render.js";
+import { page, UI_CSS } from "./layout.js";
 import {
   appManifest,
   manifestFormPage,
@@ -183,13 +184,20 @@ app.get("/gateway/setup/github-app/callback", async (c) => {
       const admin = c.env.GITHUG_ADMIN || (a.owner.type === "User" ? a.owner.login : "");
       if (SELF_HOSTED && admin) await addInstanceUser(c.env, admin, "admin", "setup");
       const settings = a.owner.type === "Organization" ? `https://github.com/organizations/${a.owner.login}/settings/apps/${a.slug}` : `https://github.com/settings/apps/${a.slug}`;
-      return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="robots" content="noindex"/><title>${escapeHtml(BRAND)} · App created</title></head>
-<body style="font-family:ui-monospace,monospace;background:#0f1a14;color:#e8eee9;padding:40px;max-width:720px;line-height:1.6">
+      return c.html(
+        page({
+          title: `${BRAND} · App created`,
+          noindex: true,
+          css: UI_CSS,
+          body: `<main class="wrap">
 <h1>App created: ${escapeHtml(a.slug)}</h1>
 <p>Saved to this instance (encrypted). Two more steps:</p>
-<ol><li>In <a style="color:#7fd1a0" href="${escapeHtml(settings)}">the App's settings</a>, tick <b>Enable Device Flow</b> (for <code>hug login</code>) and save.</li>
-<li><a style="color:#7fd1a0" href="/login?next=/app">Sign in</a>${admin ? ` as <b>${escapeHtml(admin)}</b> (the instance admin)` : ""}, then install the App on your repos from the dashboard.</li></ol>
-</body></html>`);
+<ol><li>In <a href="${escapeHtml(settings)}">the App's settings</a>, tick <b>Enable Device Flow</b> (for <code>hug login</code>) and save.</li>
+<li><a href="/login?next=/app">Sign in</a>${admin ? ` as <b>${escapeHtml(admin)}</b> (the instance admin)` : ""}, then install the App on your repos from the dashboard.</li></ol>
+
+</main>`,
+        }),
+      );
     } catch (e) {
       console.error("app manifest conversion failed:", (e as Error).message);
       return c.text("GitHub didn't hand over the new App (codes expire after an hour). Create it again.", 502);
@@ -430,12 +438,19 @@ app.get("/app/agents/:id/identity", async (c) => {
     : `https://github.com/organizations/${encodeURIComponent(owner)}/settings/apps/new?state=${state}`;
   const manifest = JSON.stringify(identityManifest(agent)).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   c.header("Cache-Control", "private, no-store");
-  return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="robots" content="noindex"/><title>githug · creating ${escapeHtml(agent.id)}'s identity</title></head>
-<body style="font-family:ui-monospace,monospace;background:#0f1a14;color:#e8eee9;padding:40px">
+  return c.html(
+    page({
+      title: `githug · creating ${agent.id}'s identity`,
+      noindex: true,
+      css: UI_CSS,
+      body: `<main class="wrap">
 <form id="m" method="post" action="${escapeHtml(action)}"><input type="hidden" name="manifest" value="${manifest}">
 <p>Taking you to GitHub to create <b>${escapeHtml(agent.id)}</b>'s own identity. Keep the name (change it if GitHub says it's taken), then click <b>Create GitHub App</b>.</p>
-<button type="submit">Continue to GitHub →</button></form>
-<script>document.getElementById('m').submit()</script></body></html>`);
+<button class="btn go" type="submit">Continue to GitHub →</button></form>
+<script>document.getElementById('m').submit()</script>
+</main>`,
+    }),
+  );
 });
 
 // Resume an unfinished identity: install the agent's existing App (state round-trips to /installed).
@@ -646,6 +661,7 @@ app.post("/v1/agents/:id/:action{disable|enable}", async (c) => {
 });
 
 // Self-hosted instance admin: who may sign in, and setup status.
+const ADMIN_CSS = `table{border-collapse:collapse;width:100%}td{padding:6px 8px;border-bottom:1px solid var(--faint);vertical-align:top}input,button{font:inherit;padding:6px 10px;border-radius:6px;border:1px solid var(--faint);background:var(--raise);color:inherit}button{cursor:pointer}`;
 async function instanceAdmin(c: any): Promise<Account | null> {
   const me = await sessionHuman(c);
   return me && (await isInstanceAdmin(c.env, me.login, me.actorId)) ? me : null;
@@ -664,15 +680,21 @@ app.get("/admin", async (c) => {
     ["GITHUG_ALLOW", allow.join(", ") || "(empty)"],
   ];
   c.header("Cache-Control", "private, no-store");
-  return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex"/><title>${escapeHtml(BRAND)} · admin</title>
-<style>body{font-family:"Geist Mono",ui-monospace,monospace;background:#0f1a14;color:#e8eee9;max-width:760px;margin:0 auto;padding:32px 16px;line-height:1.6}a{color:#7fd1a0}table{border-collapse:collapse;width:100%}td{padding:6px 8px;border-bottom:1px solid #22342a;vertical-align:top}input,button{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid #2e4a3a;background:#14241b;color:inherit}button{cursor:pointer}</style></head><body>
+  return c.html(
+    page({
+      title: `${BRAND} · admin`,
+      noindex: true,
+      css: UI_CSS + ADMIN_CSS,
+      body: `<main class="wrap">
 <p><a href="/app">← dashboard</a></p><h1>Instance</h1>
 <table>${status.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join("")}</table>
 <h2>Who may sign in</h2>
 <table>${users.map((u) => `<tr><td>${escapeHtml(u.login)}</td><td>${u.role}</td><td>${u.role === "admin" ? "" : `<form method="post" action="/admin/users/${encodeURIComponent(u.login)}/remove" style="margin:0"><button>remove</button></form>`}</td></tr>`).join("")}</table>
 <form method="post" action="/admin/users" style="margin-top:12px"><input name="login" placeholder="github-login" required pattern="[A-Za-z0-9-]{1,39}"/> <button>add</button></form>
 <p>People in an org listed in <code>GITHUG_ALLOW</code> who can push to one of its repos join on first sign-in.</p>
-</body></html>`);
+</main>`,
+    }),
+  );
 });
 app.post("/admin/users", async (c) => {
   if (!SELF_HOSTED) return c.text("Not found.", 404);

@@ -4,6 +4,7 @@
  * v0 (M1.1) shows who is signed in and the agents they are accountable for.
  */
 import { escapeHtml } from "./render.js";
+import { page, UI_CSS } from "./layout.js";
 import type { Account, AgentRow, AccountRepo, RunLog, CliLogin, MonthUsage } from "./gateway-api.js";
 
 export interface AppPageOpts {
@@ -17,43 +18,6 @@ export interface AppPageOpts {
   error?: string;
 }
 
-export const APP_CSS = `
-:root{
-  color-scheme:dark;
-  --bg:#0f1a14;--raise:#14211a;--fg:#e8eee9;--mute:#93a39a;--faint:#24342b;--green:#5fb27f;--coral:#f26b4f;
-  --mono:"Geist Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-}
-@media (prefers-color-scheme:light){:root{
-  color-scheme:light;
-  --bg:#f6f8f5;--raise:#ffffff;--fg:#0f1a14;--mute:#5b6b62;--faint:#dbe3de;--green:#2f7d4f;--coral:#c94a2e;
-}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.6 var(--mono)}
-.wrap{max-width:880px;margin:0 auto;padding:24px 16px 64px}
-.nav{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:40px}
-.wm{color:var(--fg);font-weight:600;text-decoration:none}
-.who{color:var(--mute)}.who b{color:var(--coral);font-weight:500}
-.who a{color:var(--mute);margin-left:12px}
-h1{font-size:22px;font-weight:600;margin:0 0 8px}
-.lede{color:var(--mute);margin:0 0 28px}
-.agents{list-style:none;margin:0;padding:0;border-top:1px solid var(--faint)}
-.agents li{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 0;border-bottom:1px solid var(--faint)}
-.agents .id{color:var(--green);font-weight:500}
-.agents .meta{color:var(--mute);overflow-wrap:anywhere}
-.off{color:var(--coral)}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.empty{color:var(--mute);border:1px dashed var(--faint);padding:20px;border-radius:6px}
-h2{font-size:15px;font-weight:600;margin:40px 0 12px}
-.btn{display:inline-block;font:inherit;font-size:13px;padding:6px 12px;border-radius:6px;border:1px solid var(--faint);background:var(--raise);color:var(--fg);text-decoration:none;cursor:pointer}
-.btn.go{background:var(--green);border-color:var(--green);color:var(--bg)}
-.inline{display:inline;margin:0}
-form.new{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-form.new input,form.new select{font:inherit;font-size:13px;padding:6px 10px;border-radius:6px;border:1px solid var(--faint);background:var(--raise);color:var(--fg);min-width:0;max-width:100%}
-.hint{color:var(--mute);font-size:12px;margin:8px 0 0}
-.err{color:var(--coral);margin:0 0 20px}
-.key{border:1px solid var(--green);border-radius:6px;padding:16px;margin:0 0 28px}
-.key pre{margin:8px 0;padding:10px;background:var(--raise);border-radius:4px;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
-`;
 
 /** Parents first, each followed by its sub-agents (depth-first), newest roots first. */
 function treeOrder(agents: AgentRow[]): AgentRow[] {
@@ -114,19 +78,15 @@ ${keyBox(opts.created.key)}</div>`
 }
 
 function shell(title: string, account: Account, body: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="robots" content="noindex"/>
-<title>${escapeHtml(title)}</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&display=swap"/>
-<style>${APP_CSS}</style></head>
-<body><main class="wrap">
+  return page({
+    title,
+    noindex: true,
+    css: UI_CSS,
+    body: `<main class="wrap">
   <div class="nav"><a class="wm" href="/">githug</a><span class="who">signed in as <b>${escapeHtml(account.actor ?? account.login)}</b><a href="/docs">docs</a><a href="/logout">log out</a></span></div>
   ${body}
-</main></body></html>`;
+</main>`,
+  });
 }
 
 /** A bearer key, shown once, with a copy button. */

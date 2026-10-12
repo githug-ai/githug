@@ -34,6 +34,8 @@ named `agent/<topic>`, push it, open the PR with `hug pr create --title "…"` (
 
 ## Conventions
 - Match existing code style; keep the dependency-light approach (see `src/render.ts`).
+- Every HTML page goes through `page()` in `src/layout.ts` (head, fonts, brand tokens, beacon);
+  pass only the title, the page's own CSS and its body. Don't write another `<!doctype html>`.
 - Server-rendered pages; brand = Geist Mono, forest ground, green = agent, coral = human.
 
 ## githug.ai maintainers

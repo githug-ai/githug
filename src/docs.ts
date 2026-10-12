@@ -5,7 +5,7 @@
  */
 import { markdownToSafeHtml, escapeHtml } from "./render.js";
 import { SITE_ORIGIN, AGENT_DOMAIN } from "./site.js";
-import { APP_CSS } from "./app.js";
+import { page, UI_CSS } from "./layout.js";
 import index from "../content/docs/index.md";
 import claudeCode from "../content/docs/claude-code.md";
 import codex from "../content/docs/codex.md";
@@ -47,18 +47,15 @@ export function docsPage(slug: string): string | null {
 /** Renders a markdown page in the docs layout; mdPath is where the raw markdown is served. */
 export function markdownPage(src: string, mdPath: string): string {
   const title = /^#\s+(.+)$/m.exec(src)?.[1] ?? "githug docs";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${escapeHtml(title)} · githug</title>
-<link rel="alternate" type="text/markdown" href="${mdPath}"/>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&display=swap"/>
-<style>${APP_CSS}${DOCS_CSS}</style></head>
-<body><main class="wrap">
+  return page({
+    title: `${title} · githug`,
+    head: `<link rel="alternate" type="text/markdown" href="${mdPath}"/>\n`,
+    css: UI_CSS + DOCS_CSS,
+    beaconPath: mdPath.replace(/(\/index)?\.md$/, "") || "/docs",
+    body: `<main class="wrap">
   <div class="nav"><a class="wm" href="/">githug</a><span class="who"><a href="/docs">docs</a><a href="/app">your agents</a></span></div>
   <article class="doc">${markdownToSafeHtml(src)}</article>
   <p class="raw">For agents: <a href="${mdPath}">${mdPath}</a></p>
-</main></body></html>`;
+</main>`,
+  });
 }
