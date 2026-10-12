@@ -54,6 +54,7 @@ export interface GatewayUser {
 }
 
 import { SITE_ORIGIN, BRAND, brandSlug, agentEmail, agentEmailRe } from "./site.js";
+import { page, UI_CSS } from "./layout.js";
 
 const GH = "https://api.github.com";
 
@@ -792,13 +793,16 @@ export async function convertAppManifest(code: string): Promise<{ id: number; sl
 export function manifestFormPage(manifest: object, owner?: string): string {
   const action = owner ? `https://github.com/organizations/${owner}/settings/apps/new` : "https://github.com/settings/apps/new";
   const json = JSON.stringify(manifest);
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>Register githug Gateway</title>
-<style>body{font-family:ui-sans-serif,system-ui;max-width:720px;margin:3rem auto;padding:0 1rem;line-height:1.5}pre{background:#8881;padding:1rem;border-radius:8px;overflow:auto;font-size:.85rem}button{font:inherit;background:#2f7d4f;color:#fff;border:0;border-radius:10px;padding:.7rem 1.1rem;font-weight:600;cursor:pointer}</style></head>
-<body><h1>Register the "githug Gateway" GitHub App</h1>
+  return page({
+    title: "Register githug Gateway",
+    noindex: true,
+    css: UI_CSS + "pre{background:var(--raise);border:1px solid var(--faint);padding:1rem;border-radius:6px;overflow:auto;font-size:12px}",
+    body: `<main class="wrap"><h1>Register the "githug Gateway" GitHub App</h1>
 <p>This posts the manifest below to GitHub. GitHub creates the app under your account and redirects back here with a one-time code, which the callback prints for the conversion step.</p>
 <pre>${json.replace(/</g, "&lt;")}</pre>
-<form method="post" action="${action}"><input type="hidden" name="manifest" value='${json.replace(/'/g, "&#39;")}'/><button type="submit">Create GitHub App</button></form>
-</body></html>`;
+<form method="post" action="${action}"><input type="hidden" name="manifest" value='${json.replace(/'/g, "&#39;")}'/><button class="btn go" type="submit">Create GitHub App</button></form>
+</main>`,
+  });
 }
 
 // ---------------------------------------------------------------------------

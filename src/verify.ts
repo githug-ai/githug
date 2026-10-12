@@ -4,20 +4,20 @@
  * and what githug's own records (agent registry, token log) say about it.
  */
 import { escapeHtml } from "./render.js";
-import { APP_CSS } from "./app.js";
+import { page, UI_CSS } from "./layout.js";
 import type { VerifyResult, VerifyPullResult } from "./gateway-api.js";
 
 const VERIFY_CSS = `
 .verdict{font-size:22px;font-weight:600;margin:0 0 6px}
-.verdict.ok{color:var(--green)}.verdict.partial{color:var(--coral)}.verdict.no{color:var(--mute)}
+.verdict.ok{color:var(--green)}.verdict.partial{color:var(--coral-text)}.verdict.no{color:var(--mute)}
 .commit{color:var(--mute);margin:0 0 28px;overflow-wrap:anywhere}
 .commit a{color:var(--mute)}
 .chain{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0 0 28px}
 .chain dt{color:var(--mute)}.chain dd{margin:0}
-.h{color:var(--coral)}.a{color:var(--green)}
+.h{color:var(--coral-text)}.a{color:var(--green)}
 .checks{list-style:none;padding:0;margin:0;border-top:1px solid var(--faint)}
 .checks li{padding:10px 0;border-bottom:1px solid var(--faint);overflow-wrap:anywhere}
-.checks .y{color:var(--green)}.checks .n{color:var(--coral)}
+.checks .y{color:var(--green)}.checks .n{color:var(--coral-text)}
 form.look{display:flex;gap:8px;flex-wrap:wrap}
 form.look input{flex:1;min-width:0;font:inherit;font-size:13px;padding:6px 10px;border-radius:6px;border:1px solid var(--faint);background:var(--raise);color:var(--fg)}
 .foot{color:var(--mute);font-size:12px;margin-top:40px}
@@ -25,20 +25,17 @@ form.look input{flex:1;min-width:0;font:inherit;font-size:13px;padding:6px 10px;
 `;
 
 function shell(title: string, body: string, noindex = false): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-${noindex ? '<meta name="robots" content="noindex"/>' : ""}
-<title>${escapeHtml(title)}</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&display=swap"/>
-<style>${APP_CSS}${VERIFY_CSS}</style></head>
-<body><main class="wrap">
+  return page({
+    title,
+    noindex,
+    css: UI_CSS + VERIFY_CSS,
+    beaconPath: "/v",
+    body: `<main class="wrap">
   <div class="nav"><a class="wm" href="/">githug</a><span class="who">verify</span></div>
   ${body}
   <p class="foot">githug checks a commit against its own records: the agent registry and the log of every key it minted. <a href="/">What is githug?</a></p>
-</main></body></html>`;
+</main>`,
+  });
 }
 
 const LOOKUP = `<form class="look" method="get" action="/v"><label class="sr" for="v-url">Commit URL</label><input id="v-url" name="url" placeholder="https://github.com/owner/repo/commit/sha" required><button class="btn go" type="submit">Verify</button></form>`;
