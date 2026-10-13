@@ -224,3 +224,44 @@ func TestAttestCommand(t *testing.T) {
 		t.Fatalf("attest body = %v", got)
 	}
 }
+
+// The commit hook's trailers come fresh from githug (a setting changed since the token was
+// cached shows at once), and from the cached token when githug can't answer.
+func TestCommitTrailersFreshThenCached(t *testing.T) {
+	up := true
+	var sawRun string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer ghg_k" {
+			w.WriteHeader(401)
+			return
+		}
+		var in map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		switch r.URL.Path {
+		case "/v1/trailers":
+			if !up {
+				w.WriteHeader(503)
+				return
+			}
+			sawRun, _ = in["run"].(string)
+			json.NewEncoder(w).Encode(map[string]any{"trailers": []string{"Co-authored-by: ana <ana@example.com>", "Accountable: ana", "Agent: orbit"}})
+		case "/v1/token":
+			json.NewEncoder(w).Encode(map[string]any{"token": "ghs_tok", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "trailers": []string{"Accountable: ana", "Agent: orbit"}})
+		}
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	t.Setenv("HUG_CONFIG", filepath.Join(dir, "config.json"))
+	t.Setenv("GITHUG_URL", srv.URL)
+	t.Setenv("GITHUG_RUN", "loop-9")
+	cfg := &Config{Agents: map[string]string{"orbit": "ghg_k"}, DefaultAgent: "orbit"}
+	got, err := commitTrailers(cfg, "orbit", "acme/api")
+	if err != nil || len(got) != 3 || !strings.HasPrefix(got[0], "Co-authored-by") || sawRun != "loop-9" {
+		t.Fatalf("fresh: %v, %v, run %q", got, err, sawRun)
+	}
+	up = false
+	got, err = commitTrailers(cfg, "orbit", "acme/api")
+	if err != nil || strings.Join(got, "|") != "Accountable: ana|Agent: orbit" {
+		t.Fatalf("fallback: %v, %v", got, err)
+	}
+}

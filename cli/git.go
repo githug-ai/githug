@@ -268,17 +268,39 @@ func cmdHook(args []string) error {
 	if err != nil {
 		return err
 	}
-	t, err := mintCached(cfg, repoAgent(), repoName)
+	trailers, err := commitTrailers(cfg, repoAgent(), repoName)
 	if err != nil {
 		// Never block a commit: warn and leave the message as written.
 		fmt.Fprintln(stderr, "hug: no trailers added:", err)
 		return nil
 	}
 	gitArgs := []string{"interpret-trailers", "--in-place", "--if-exists", "addIfDifferent"}
-	for _, tr := range t.Trailers {
+	for _, tr := range trailers {
 		gitArgs = append(gitArgs, "--trailer", tr)
 	}
 	return gitRun(append(gitArgs, args[1])...)
+}
+
+// commitTrailers asks githug for the agent's trailers as its settings are now (a cached
+// token's trailers are as old as the token), falling back to the cached token's when
+// githug can't answer: offline, rate limited, or an older githug without /v1/trailers.
+func commitTrailers(cfg *Config, agentName, repoName string) ([]string, error) {
+	if key, err := cfg.agentKey(agentName); err == nil {
+		body := map[string]any{"repo": repoName}
+		if run := os.Getenv("GITHUG_RUN"); run != "" {
+			body["run"] = run
+		}
+		var r struct {
+			Trailers []string `json:"trailers"`
+		}
+		c := newClient(cfg.baseURL())
+		c.http.Timeout = 5 * time.Second
+		if _, err := c.do("POST", "/v1/trailers", key, body, &r); err == nil && len(r.Trailers) > 0 {
+			return r.Trailers, nil
+		}
+	}
+	t, err := mintCached(cfg, agentName, repoName)
+	return t.Trailers, err
 }
 
 var zeroSHA = regexp.MustCompile(`^0+$`)

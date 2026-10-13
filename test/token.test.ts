@@ -141,3 +141,22 @@ test("an account can put its agent on more repos it can push to, and the key the
   assert.equal(subAdd.status, 400);
   assert.match(((await subAdd.json()) as any).error, /sub-agent/);
 });
+
+test("/v1/trailers follows the agent's settings as they are now, without minting", async (t) => {
+  const { gh, env, s, auth } = await setup(t);
+  const trailers = async (body: any, headers: any = auth) => {
+    const r = await call(env, "POST", "/v1/trailers", { body, headers });
+    return { status: r.status, j: (await r.json()) as any };
+  };
+  let r = await trailers({ repo: "ana/api", run: "r1" });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.j.trailers, ["Accountable: ana", "Agent: orbit", "Run: r1"]);
+  await call(env, "POST", "/v1/agents/orbit/credit", { body: { on: true }, headers: s.bearer });
+  r = await trailers({ repo: "ana/api" });
+  assert.deepEqual(r.j.trailers, ["Co-authored-by: ana <ana@example.com>", "Accountable: ana", "Agent: orbit"]);
+  assert.equal(gh.minted.length, 0, "no token minted");
+  assert.equal((await trailers({ repo: "ana/web" })).status, 403);
+  assert.equal((await trailers({ repo: "ana/api" }, { authorization: "Bearer ghg_nope" })).status, 401);
+  await call(env, "POST", "/v1/agents/orbit/disable", { headers: s.bearer });
+  assert.equal((await trailers({ repo: "ana/api" })).status, 403);
+});
