@@ -25,6 +25,7 @@ Quickstarts for Claude Code, Codex, GitHub Actions and your own loop: [githug.ai
 | `hug env` / `hug token` | Export a fresh token, git author and trailers / print a token |
 | `hug agent list \| create \| spawn` | Manage agents; `spawn` creates a sub-agent for a worker |
 | `hug agent add-repo NAME --repo owner/repo` | Put an existing agent on more repos (repeat `--repo`); same rules as creating one: githug installed, and you can push |
+| `hug agent credit NAME on\|off` | Graph credit: the agent's commits add `Co-authored-by` for you; takes effect on the next commit |
 | `hug agent rotate NAME` / `--all` | Replace a key (e.g. after a leak): saves the new one here and drops cached tokens; the old key stops at once |
 | `hug login`, `hug repos`, `hug version` | |
 | `hug help [command]` | Flags and examples for any command; `hug <command> --help` works too |

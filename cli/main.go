@@ -77,6 +77,8 @@ func run(args []string) error {
 			return cmdAgentSpawn(rest[1:])
 		case "rotate":
 			return cmdAgentRotate(rest[1:])
+		case "credit":
+			return cmdAgentCredit(rest[1:])
 		}
 		return fmt.Errorf("unknown agent command %q\n  (see `hug agent --help`)", rest[0])
 	case "setup":
@@ -274,6 +276,12 @@ func cmdInit(args []string) error {
 		if _, err := addRepos(cfg, c, o, name, []string{*repoF}); err != nil {
 			return err
 		}
+		// --graph-credit used to be dropped here without a word; turn it on for the agent too.
+		if *graphCredit {
+			if err := setCredit(cfg, c, o, name, true); err != nil {
+				return err
+			}
+		}
 	} else if err := createAgent(cfg, c, name, *repoF, *graphCredit); err != nil {
 		return err
 	}
@@ -407,6 +415,9 @@ func cmdAgentList(args []string) error {
 		mark := ""
 		if _, ok := cfg.Agents[a.ID]; ok {
 			mark = " (key on this machine)"
+		}
+		if a.CreditHuman {
+			mark += " [graph credit]"
 		}
 		if a.Disabled != 0 {
 			mark += " [disabled]"
@@ -584,6 +595,47 @@ func cmdAgentRotate(args []string) error {
 	if len(failed) > 0 {
 		return fmt.Errorf("could not rotate %s", strings.Join(failed, ", "))
 	}
+	return nil
+}
+
+func cmdAgentCredit(args []string) error {
+	fs := flag.NewFlagSet("agent credit", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 2 || !agentRE.MatchString(pos[0]) || (pos[1] != "on" && pos[1] != "off") {
+		return usageError("agent credit")
+	}
+	cfg, c, err := accountClient(*asJSON)
+	if err != nil {
+		return err
+	}
+	return setCredit(cfg, c, out{*asJSON}, pos[0], pos[1] == "on")
+}
+
+// setCredit turns graph credit on or off, and drops the agent's cached tokens so the next
+// commit carries the new trailers instead of the ones minted with the old setting.
+func setCredit(cfg *Config, c *client, o out, name string, on bool) error {
+	var r struct {
+		Trailer bool   `json:"trailer"`
+		Note    string `json:"note"`
+	}
+	if _, err := c.do("POST", "/v1/agents/"+name+"/credit", cfg.AccountKey, map[string]any{"on": on}, &r); err != nil {
+		var ae *apiError
+		if errors.As(err, &ae) && ae.Status == 404 {
+			return fmt.Errorf("no agent %q on your account (see `hug agent list`)", name)
+		}
+		return err
+	}
+	clearTokenCache(name)
+	state := map[bool]string{true: "on", false: "off"}[on]
+	msg := "  graph credit: " + state + " for " + name
+	if r.Note != "" {
+		msg += "\n  " + r.Note
+	}
+	o.event("graph_credit", map[string]any{"agent": name, "on": on, "trailer": r.Trailer, "note": r.Note}, msg)
 	return nil
 }
 

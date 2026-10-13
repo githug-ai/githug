@@ -98,8 +98,9 @@ func TestInitFlow(t *testing.T) {
 	}
 }
 
-// fakeAddRepo serves /v1/repos (acme/api, acme/web installed) and /v1/agents/claude/repos,
-// recording the repos each add asked for.
+// fakeAddRepo serves /v1/repos (acme/api, acme/web installed), /v1/agents/claude/repos and
+// /v1/agents/claude/credit, recording the repos each add asked for (and credit calls as
+// ["credit", "true"|"false"]).
 func fakeAddRepo(t *testing.T, asked *[][]string) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer hug_k" {
@@ -114,6 +115,16 @@ func fakeAddRepo(t *testing.T, asked *[][]string) {
 			json.NewDecoder(r.Body).Decode(&body)
 			*asked = append(*asked, body.Repos)
 			json.NewEncoder(w).Encode(map[string]any{"ok": true, "repos": append([]string{"acme/api"}, body.Repos...), "added": body.Repos})
+		case "/v1/agents/claude/credit":
+			var body struct{ On bool }
+			json.NewDecoder(r.Body).Decode(&body)
+			if body.On {
+				*asked = append(*asked, []string{"credit", "true"})
+				json.NewEncoder(w).Encode(map[string]any{"ok": true, "credit_human": true, "trailer": false, "note": "ana hasn't signed in to githug, so commits can't carry Co-authored-by for them yet."})
+				return
+			}
+			*asked = append(*asked, []string{"credit", "false"})
+			json.NewEncoder(w).Encode(map[string]any{"ok": true, "credit_human": false, "trailer": false})
 		default:
 			w.WriteHeader(404)
 			json.NewEncoder(w).Encode(map[string]any{"error": "no such agent"})
@@ -243,6 +254,51 @@ func TestAgentRotate(t *testing.T) {
 	}
 	if err := run([]string{"agent", "rotate", "claude", "--all"}); err == nil || !strings.Contains(err.Error(), "--help") {
 		t.Fatalf("name and --all: err = %v", err)
+	}
+}
+
+// --graph-credit on an agent that already exists turns it on instead of being dropped.
+func TestInitGraphCreditOnExistingAgent(t *testing.T) {
+	var asked [][]string
+	fakeAddRepo(t, &asked)
+	stdout = io.Discard
+	defer func() { stdout = os.Stdout }()
+	if err := run([]string{"init", "--repo", "acme/web", "--agent", "claude", "--graph-credit", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 2 || strings.Join(asked[1], ":") != "credit:true" {
+		t.Fatalf("asked = %v", asked)
+	}
+}
+
+func TestAgentCredit(t *testing.T) {
+	var asked [][]string
+	fakeAddRepo(t, &asked)
+	p, _ := tokenCachePath("claude", "acme/api", "")
+	os.MkdirAll(filepath.Dir(p), 0o700)
+	os.WriteFile(p, []byte("{}"), 0o600)
+	var buf bytes.Buffer
+	stdout = &buf
+	defer func() { stdout = os.Stdout }()
+	if err := run([]string{"agent", "credit", "claude", "on", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	var ev map[string]any
+	json.Unmarshal(buf.Bytes(), &ev)
+	if ev["event"] != "graph_credit" || ev["on"] != true || ev["trailer"] != false || !strings.Contains(ev["note"].(string), "hasn't signed in") {
+		t.Fatalf("event = %v", ev)
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatal("cached token survived a credit change; the next commit would carry the old trailers")
+	}
+	if err := run([]string{"agent", "credit", "claude", "off"}); err != nil || strings.Join(asked[len(asked)-1], ":") != "credit:false" {
+		t.Fatalf("off: err = %v, asked = %v", err, asked)
+	}
+	if err := run([]string{"agent", "credit", "nobody", "on"}); err == nil || !strings.Contains(err.Error(), "hug agent list") {
+		t.Fatalf("unknown agent: err = %v", err)
+	}
+	if err := run([]string{"agent", "credit", "claude", "maybe"}); err == nil || !strings.Contains(err.Error(), "--help") {
+		t.Fatalf("bad state: err = %v", err)
 	}
 }
 
