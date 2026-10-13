@@ -18,7 +18,7 @@ Quickstarts for Claude Code, Codex, GitHub Actions and your own loop: [githug.ai
 | | |
 |---|---|
 | `hug init --repo owner/repo [--agent name] [--url URL] [--json]` | Log in (GitHub device flow), wait for the githug App install if needed, create the agent, and set up the clone you're in. `--url` points hug at a self-hosted githug (saved) |
-| `hug setup [--agent name]` | In a clone: commits authored as the agent, `hug` as git's credential helper (fresh token per push), a hook that adds the trailers, and a pre-push hook that attests each pushed commit with the agent's key (so githug shows it as verified) |
+| `hug setup [--agent name] [--env\|--undo]` | In a clone: commits authored as the agent, `hug` as git's credential helper (fresh token per push), a hook that adds the trailers, and a pre-push hook that attests each pushed commit with the agent's key (so githug shows it as verified). `--env` prints the same as `GIT_CONFIG_*` for a tool's settings, for a clone you also commit in yourself; `--undo` removes it |
 | `hug attest [--repo owner/repo] [rev…]` | Attest commits by hand before pushing them some other way (CI, `hug env`); default: commits no remote has yet |
 | `hug run -- <command>` | One run id for every key and commit the command makes |
 | `hug pr create --title T [--body-file F] [--as human\|agent] [--label L]` | Open a PR through githug. `--as agent` makes the agent's bot the author, so you can still approve it |
