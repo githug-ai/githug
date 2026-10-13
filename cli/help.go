@@ -30,7 +30,7 @@ the repo instead of creating a new one.`,
 		flags: []string{
 			"--repo owner/repo   the repository the agent works on (required)",
 			"--agent NAME        agent name; default <repo>-agent (lowercase letters, digits, dashes)",
-			"--graph-credit      add Co-authored-by for you, so commits count on your GitHub graph",
+			"--graph-credit      commits count on your GitHub graph (Co-authored-by); works on an existing agent too",
 			"--wait DURATION     how long to wait for the App install (default 10m)",
 			"--url URL           a self-hosted githug instance (saved; GITHUG_URL overrides)",
 			"--json              one JSON event per line on stdout",
@@ -128,14 +128,15 @@ works on more than one repo (GITHUG_REPO sets it too).`,
 		details: `Repos where githug is installed and you can push. Install on more from the URL it prints.`,
 	},
 	"agent": {
-		usage:   "agent list | create | add-repo | rotate | spawn",
+		usage:   "agent list | create | add-repo | credit | rotate | spawn",
 		summary: "Manage agents",
 		details: "Run 'hug agent <command> --help' for flags and examples.",
 	},
 	"agent list": {
 		usage:   "agent list [--json]",
 		summary: "List your agents and their repos",
-		details: `Shows each agent, its repos, whether its key is on this machine, and whether it's disabled.`,
+		details: `Shows each agent, its repos, whether its key is on this machine, whether graph credit is on,
+and whether it's disabled.`,
 	},
 	"agent create": {
 		usage:   "agent create NAME --repo owner/repo [--graph-credit] [--json]",
@@ -169,6 +170,15 @@ stop an agent working on a repo, disable it and create a new one.`,
 			"hug agent add-repo claude --repo acme/web --repo acme/docs",
 		},
 		see: []string{"agent list", "setup"},
+	},
+	"agent credit": {
+		usage:   "agent credit NAME on|off [--json]",
+		summary: "Turn graph credit on or off for an agent",
+		details: `On: the agent's commits add Co-authored-by for you, so GitHub counts them on your
+contribution graph. Takes effect on the next commit (hug drops the agent's cached tokens).
+githug needs your email for the trailer, which it has once you've signed in; hug says if not.`,
+		example: []string{"hug agent credit claude on"},
+		see:     []string{"agent list"},
 	},
 	"agent rotate": {
 		usage:   "agent rotate NAME | --all [--print] [--json]",
@@ -220,7 +230,7 @@ var helpGroups = []struct {
 }{
 	{"Get started", []string{"init", "setup"}},
 	{"Work as the agent", []string{"pr create", "run", "env", "token", "attest"}},
-	{"Manage agents", []string{"agent list", "agent create", "agent add-repo", "agent rotate", "agent spawn", "repos", "login"}},
+	{"Manage agents", []string{"agent list", "agent create", "agent add-repo", "agent credit", "agent rotate", "agent spawn", "repos", "login"}},
 	{"", []string{"version", "help"}},
 }
 

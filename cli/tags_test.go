@@ -24,7 +24,7 @@ func TestReleaseTagPatterns(t *testing.T) {
 	dir := writeWorkflows(t, map[string]string{
 		"release.yml": "on:\n  push:\n    tags:\n      - \"v*\"   # releases\n      - 'rc-*'\n  workflow_dispatch:\n",
 		"inline.yaml": "on:\n  push:\n    branches: [main]\n    tags: [ \"x*\", y ]\n",
-		"docker.yml": "on:\n  push:\n    branches: [main]\njobs:\n  b:\n    steps:\n      - uses: docker/metadata-action@v5\n        with:\n          tags: |\n            type=semver\n",
+		"docker.yml":  "on:\n  push:\n    branches: [main]\njobs:\n  b:\n    steps:\n      - uses: docker/metadata-action@v5\n        with:\n          tags: |\n            type=semver\n",
 	})
 	got := releaseTagPatterns(dir)
 	if strings.Join(got["release.yml"], ",") != "v*,rc-*" || strings.Join(got["inline.yaml"], ",") != "x*,y" || got["docker.yml"] != nil {

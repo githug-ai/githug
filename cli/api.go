@@ -100,10 +100,11 @@ type reposReply struct {
 }
 
 type agent struct {
-	ID       string   `json:"id"`
-	Repos    []string `json:"repos"`
-	Disabled int      `json:"disabled"`
-	LastUsed *string  `json:"last_used"`
+	ID          string   `json:"id"`
+	Repos       []string `json:"repos"`
+	Disabled    int      `json:"disabled"`
+	CreditHuman bool     `json:"credit_human"`
+	LastUsed    *string  `json:"last_used"`
 }
 
 type tokenReply struct {

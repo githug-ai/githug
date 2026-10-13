@@ -520,7 +520,11 @@ app.post("/v1/agents/:id/credit", async (c) => {
   const id = c.req.param("id").toLowerCase();
   const owned = await findAccountAgent(c.env.DB, id, account.id);
   const ok = owned && (await canManage(c, account, owned)) ? await setAgentCredit(c.env.DB, id, body.on, account.id) : false;
-  return ok ? c.json({ ok: true, credit_human: body.on }) : c.json({ error: "no such agent" }, 404);
+  if (!ok || !owned) return c.json({ error: "no such agent" }, 404);
+  // The trailer needs the accountable human's email, which githug has once they've signed in.
+  const human = body.on && owned.accountable ? await findGatewayUser(c.env.DB, { login: owned.accountable, id: owned.accountable_id }) : null;
+  const trailer = !!human?.email;
+  return c.json({ ok: true, credit_human: body.on, trailer, ...(body.on && !trailer ? { note: `${owned.accountable || "The accountable human"} hasn't signed in to githug, so commits can't carry Co-authored-by for them yet.` } : {}) });
 });
 
 // Puts an agent on more repos, on the same terms as creating one (the account's human can push
@@ -1052,7 +1056,7 @@ app.post("/v1/token", async (c) => {
     // Accountable: is always there and doesn't touch the graph.
     const human = agent.credit_human && agent.accountable ? await findGatewayUser(c.env.DB, { login: agent.accountable, id: agent.accountable_id }) : null;
     const trailers = [
-      ...(human ? [`Co-authored-by: ${human.login} <${human.email}>`] : []),
+      ...(human?.email ? [`Co-authored-by: ${human.login} <${human.email}>`] : []),
       `Accountable: ${agent.accountable}`,
       `Agent: ${agent.id}`,
       // Sub-agents (M2.6) carry the whole lineage: human › root agent › … › this one.

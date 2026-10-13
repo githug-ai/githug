@@ -74,9 +74,20 @@ test("/v1/pr refuses repos outside the agent's scope and cross-fork heads", asyn
 
 test("graph credit on adds Co-authored-by; workflows opt-in adds workflows: write and is removed from sub-agents", async (t) => {
   const { gh, env, s, auth } = await setup(t);
-  assert.equal((await call(env, "POST", "/v1/agents/orbit/credit", { body: { on: true }, headers: s.bearer })).status, 200);
+  const on = await call(env, "POST", "/v1/agents/orbit/credit", { body: { on: true }, headers: s.bearer });
+  assert.equal(on.status, 200);
+  assert.deepEqual(await on.json(), { ok: true, credit_human: true, trailer: true });
   let j = (await (await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: auth })).json()) as any;
   assert.ok(j.trailers.includes("Co-authored-by: ana <ana@example.com>"));
+
+  // No email on record: the reply says the trailer can't appear, and no empty Co-authored-by goes out.
+  await env.DB.prepare("UPDATE gateway_users SET email = '' WHERE login = 'ana'").run();
+  const noEmail = (await (await call(env, "POST", "/v1/agents/orbit/credit", { body: { on: true }, headers: s.bearer })).json()) as any;
+  assert.equal(noEmail.trailer, false);
+  assert.match(noEmail.note, /hasn't signed in/);
+  j = (await (await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: auth })).json()) as any;
+  assert.ok(!j.trailers.some((t: string) => t.startsWith("Co-authored-by")));
+  await env.DB.prepare("UPDATE gateway_users SET email = 'ana@example.com' WHERE login = 'ana'").run();
 
   const { setAgentWorkflows } = await import("../src/gateway-api.ts");
   assert.equal(await setAgentWorkflows(env.DB, "orbit", true, s.accountId ?? "gh:101"), true);
