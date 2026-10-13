@@ -27,12 +27,13 @@ Quickstarts for Claude Code, Codex, GitHub Actions and your own loop: [githug.ai
 | `hug agent add-repo NAME --repo owner/repo` | Put an existing agent on more repos (repeat `--repo`); same rules as creating one: githug installed, and you can push |
 | `hug agent credit NAME on\|off` | Graph credit: the agent's commits add `Co-authored-by` for you; takes effect on the next commit |
 | `hug agent rotate NAME` / `--all` | Replace a key (e.g. after a leak): saves the new one here and drops cached tokens; the old key stops at once |
+| `hug config show` | Your settings, every key redacted; where each key is kept |
 | `hug login`, `hug repos`, `hug version` | |
 | `hug help [command]` | Flags and examples for any command; `hug <command> --help` works too |
 
 ## What it stores and sends
 
-- **Stored**, in `~/.config/hug/` (mode 0600): your account key from device login (`hug_…`), the keys of agents created on this machine (`ghg_…`), and cached GitHub tokens until 5 minutes before they expire. `HUG_CONFIG` moves it.
+- **Stored**: your account key from device login (`hug_…`) and the keys of agents created on this machine (`ghg_…`) go in the OS keychain (macOS Keychain, or Secret Service on Linux); `~/.config/hug/config.json` (mode 0600) holds names and settings, and `"keychain"` in place of each key. Without a keychain, or with `HUG_KEYCHAIN=0` (CI), the keys stay in that file. Cached GitHub tokens live next to it until 5 minutes before they expire. `HUG_CONFIG` moves it; `hug config show` prints it with every key redacted.
 - **Never stored**: your GitHub password or your own GitHub token. Device login happens on github.com; githug keeps the grant server-side and gives `hug` its own key.
 - **Sent**, only to githug.ai (`--url` or `GITHUG_URL` override it): the agent key, the repo, the optional run id, the SHAs of commits you push (attestation), and for PRs the title, body, branches and labels. No code.
 - **Read from GitHub** during `hug setup`, with the agent's token: the repo's tag rulesets, to warn when a tag-triggered release workflow isn't protected.

@@ -93,7 +93,7 @@ func TestInitFlow(t *testing.T) {
 		t.Fatalf("events = %v", events)
 	}
 	cfg, _ := loadConfig()
-	if cfg.AccountKey != "hug_k" || cfg.Agents["api-agent"] != "ghg_agent" || cfg.DefaultAgent != "api-agent" {
+	if k, _ := cfg.agentKey("api-agent"); cfg.AccountKey != "hug_k" || k != "ghg_agent" || cfg.DefaultAgent != "api-agent" {
 		t.Fatalf("config = %+v", cfg)
 	}
 }
@@ -223,8 +223,9 @@ func TestAgentRotate(t *testing.T) {
 	if err := run([]string{"agent", "rotate", "claude"}); err != nil {
 		t.Fatal(err)
 	}
+	key := func(name string) string { k, _ := cfg.agentKey(name); return k }
 	cfg, _ = loadConfig()
-	if cfg.Agents["claude"] != "ghg_new_claude" || cfg.Agents["claude-code"] != "ghg_old2" {
+	if key("claude") != "ghg_new_claude" || key("claude-code") != "ghg_old2" {
 		t.Fatalf("agents = %v", cfg.Agents)
 	}
 	if _, err := os.Stat(mine); !os.IsNotExist(err) {
@@ -246,7 +247,7 @@ func TestAgentRotate(t *testing.T) {
 		t.Fatalf("rotated = %v", rotated)
 	}
 	cfg, _ = loadConfig()
-	if cfg.Agents["claude-code"] != "ghg_new_claude-code" || cfg.Agents["stranger"] != "ghg_x" {
+	if key("claude-code") != "ghg_new_claude-code" || key("stranger") != "ghg_x" {
 		t.Fatalf("agents = %v", cfg.Agents)
 	}
 	if err := run([]string{"agent", "rotate"}); err == nil || !strings.Contains(err.Error(), "--help") {
