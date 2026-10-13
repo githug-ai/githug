@@ -125,7 +125,7 @@ works on more than one repo (GITHUG_REPO sets it too).`,
 		details: `Repos where githug is installed and you can push. Install on more from the URL it prints.`,
 	},
 	"agent": {
-		usage:   "agent list | create | add-repo | spawn",
+		usage:   "agent list | create | add-repo | rotate | spawn",
 		summary: "Manage agents",
 		details: "Run 'hug agent <command> --help' for flags and examples.",
 	},
@@ -167,6 +167,26 @@ stop an agent working on a repo, disable it and create a new one.`,
 		},
 		see: []string{"agent list", "setup"},
 	},
+	"agent rotate": {
+		usage:   "agent rotate NAME | --all [--print] [--json]",
+		summary: "Replace an agent's key, e.g. after it leaked",
+		details: `Gives the agent a new key, saves it on this machine and drops its cached tokens, so the
+next commit just works. The old key stops working at once. Sub-agents the old key could
+have made are disabled; re-enable the ones you trust on the agent's page.
+
+--all rotates every agent this machine holds a key for: what to run when the config file
+leaked. GitHub tokens already minted with an old key stay valid until they expire (1 hour).`,
+		flags: []string{
+			"--all     every agent with a key on this machine",
+			"--print   also print each new key (it is never printed otherwise)",
+			"--json    one JSON event per line on stdout",
+		},
+		example: []string{
+			"hug agent rotate claude",
+			"hug agent rotate --all",
+		},
+		see: []string{"agent list"},
+	},
 	"agent spawn": {
 		usage:   "agent spawn NAME [--repo owner/repo] [--agent PARENT] [--env] [--json]",
 		summary: "As an agent: create a sub-agent for a worker",
@@ -197,7 +217,7 @@ var helpGroups = []struct {
 }{
 	{"Get started", []string{"init", "setup"}},
 	{"Work as the agent", []string{"pr create", "run", "env", "token", "attest"}},
-	{"Manage agents", []string{"agent list", "agent create", "agent add-repo", "agent spawn", "repos", "login"}},
+	{"Manage agents", []string{"agent list", "agent create", "agent add-repo", "agent rotate", "agent spawn", "repos", "login"}},
 	{"", []string{"version", "help"}},
 }
 

@@ -75,3 +75,23 @@ test("rotating a key disables the sub-agents the old key could have made", async
   assert.equal((await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: { authorization: `Bearer ${key}` } })).status, 401);
   assert.equal((await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: { authorization: `Bearer ${childKey}` } })).status, 403);
 });
+
+test("hug agent rotate: the account key rotates over /v1; the new key mints, the old one and sub-agents stop", async (t) => {
+  const { env, s, key, spawn } = await setup(t);
+  const childKey = ((await (await spawn(key, { name: "w1" })).json()) as any).key;
+  const res = await call(env, "POST", "/v1/agents/orbit/rotate", { headers: s.bearer });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "private, no-store");
+  const body = (await res.json()) as any;
+  assert.equal(body.agent, "orbit");
+  assert.equal(body.disabled_children, 1);
+  assert.match(body.key, /^ghg_/);
+  assert.notEqual(body.key, key);
+  const mint = (k: string) => call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: { authorization: `Bearer ${k}` } });
+  assert.equal((await mint(key)).status, 401);
+  assert.equal((await mint(childKey)).status, 403);
+  assert.equal((await mint(body.key)).status, 200);
+  // an agent key can't rotate itself (or anything): only the account can
+  assert.equal((await call(env, "POST", "/v1/agents/orbit/rotate", { headers: { authorization: `Bearer ${body.key}` } })).status, 401);
+  assert.equal((await call(env, "POST", "/v1/agents/nobody/rotate", { headers: s.bearer })).status, 404);
+});

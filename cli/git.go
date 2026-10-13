@@ -59,6 +59,19 @@ func tokenCachePath(agentName, repoName, run string) (string, error) {
 	return filepath.Join(filepath.Dir(p), "tokens", name+".json"), nil
 }
 
+// clearTokenCache deletes every cached token for an agent (all repos and runs), so nothing
+// minted under an old key or old settings is reused.
+func clearTokenCache(agentName string) {
+	p, err := tokenCachePath(agentName, "", "")
+	if err != nil {
+		return
+	}
+	files, _ := filepath.Glob(filepath.Join(filepath.Dir(p), agentName+"__*.json"))
+	for _, f := range files {
+		_ = os.Remove(f)
+	}
+}
+
 // mintCached returns a token for repo (and the run in GITHUG_RUN), minting only when the
 // cached one is within 5 minutes of expiry.
 func mintCached(cfg *Config, agentName, repoName string) (tokenReply, error) {

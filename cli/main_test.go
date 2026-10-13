@@ -170,6 +170,82 @@ func TestInitReusesExistingAgent(t *testing.T) {
 	}
 }
 
+// hug agent rotate saves each new key, drops only that agent's cached tokens, and with
+// --all keeps going past an agent the account doesn't own.
+func TestAgentRotate(t *testing.T) {
+	var rotated []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer hug_k" || r.Method != "POST" {
+			w.WriteHeader(401)
+			return
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/agents/"), "/rotate")
+		if name == "stranger" {
+			w.WriteHeader(404)
+			json.NewEncoder(w).Encode(map[string]any{"error": "no such agent"})
+			return
+		}
+		rotated = append(rotated, name)
+		json.NewEncoder(w).Encode(map[string]any{"ok": true, "agent": name, "key": "ghg_new_" + name, "disabled_children": 0})
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	t.Setenv("HUG_CONFIG", filepath.Join(dir, "config.json"))
+	t.Setenv("GITHUG_URL", srv.URL)
+	cfg, _ := loadConfig()
+	cfg.AccountKey = "hug_k"
+	cfg.Agents = map[string]string{"claude": "ghg_old", "claude-code": "ghg_old2", "stranger": "ghg_x"}
+	if err := cfg.save(); err != nil {
+		t.Fatal(err)
+	}
+	cached := func(agent string) string {
+		p, _ := tokenCachePath(agent, "acme/api", "")
+		os.MkdirAll(filepath.Dir(p), 0o700)
+		os.WriteFile(p, []byte("{}"), 0o600)
+		return p
+	}
+	mine, other := cached("claude"), cached("claude-code")
+	var buf bytes.Buffer
+	stdout = &buf
+	defer func() { stdout = os.Stdout }()
+
+	if err := run([]string{"agent", "rotate", "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _ = loadConfig()
+	if cfg.Agents["claude"] != "ghg_new_claude" || cfg.Agents["claude-code"] != "ghg_old2" {
+		t.Fatalf("agents = %v", cfg.Agents)
+	}
+	if _, err := os.Stat(mine); !os.IsNotExist(err) {
+		t.Fatal("claude's cached token survived the rotation")
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Fatal("rotating claude dropped claude-code's cached token")
+	}
+	if strings.Contains(buf.String(), "ghg_") {
+		t.Fatalf("printed a key without --print: %q", buf.String())
+	}
+
+	rotated = nil
+	err := run([]string{"agent", "rotate", "--all", "--json"})
+	if err == nil || !strings.Contains(err.Error(), "stranger") {
+		t.Fatalf("--all: err = %v", err)
+	}
+	if strings.Join(rotated, ",") != "claude,claude-code" {
+		t.Fatalf("rotated = %v", rotated)
+	}
+	cfg, _ = loadConfig()
+	if cfg.Agents["claude-code"] != "ghg_new_claude-code" || cfg.Agents["stranger"] != "ghg_x" {
+		t.Fatalf("agents = %v", cfg.Agents)
+	}
+	if err := run([]string{"agent", "rotate"}); err == nil || !strings.Contains(err.Error(), "--help") {
+		t.Fatalf("no name: err = %v", err)
+	}
+	if err := run([]string{"agent", "rotate", "claude", "--all"}); err == nil || !strings.Contains(err.Error(), "--help") {
+		t.Fatalf("name and --all: err = %v", err)
+	}
+}
+
 func TestHelp(t *testing.T) {
 	for _, g := range helpGroups {
 		for _, p := range g.paths {

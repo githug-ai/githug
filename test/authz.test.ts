@@ -34,6 +34,8 @@ test("accounts can't see or manage each other's agents", async (t) => {
   assert.equal(page.headers.get("location"), "/app");
   const rot = await call(env, "POST", "/app/agents/orbit/rotate", { headers: { cookie: b.cookie } });
   assert.equal(rot.headers.get("location"), "/app");
+  assert.equal((await call(env, "POST", "/v1/agents/orbit/rotate", { headers: b.bearer })).status, 404);
+  assert.equal((await call(env, "POST", "/v1/agents/orbit/rotate", { headers: { cookie: a.cookie, origin: "https://evil.example" } })).status, 401);
 });
 
 test("cookie writes need our own Origin", async (t) => {

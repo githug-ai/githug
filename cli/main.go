@@ -4,7 +4,7 @@
 //
 //	hug init --repo owner/repo [--agent name] [--json]   log in + create an agent, ready to push
 //	hug login [--json]                                   device login only
-//	hug repos | hug agent list | create | add-repo | spawn
+//	hug repos | hug agent list | create | add-repo | rotate | spawn
 //	hug token [--repo r] [--run id]                      print a 1-hour, one-repo GitHub token
 //	hug env   [--repo r] [--run id]                      print exports: GH_TOKEN, git author, trailers
 //	hug setup | hug run -- cmd | hug pr create            push/commit/PR as the agent from a clone (M2)
@@ -19,6 +19,7 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
+	"sort"
 	"strings"
 	"time"
 )
@@ -74,6 +75,8 @@ func run(args []string) error {
 			return cmdAgentAddRepo(rest[1:])
 		case "spawn":
 			return cmdAgentSpawn(rest[1:])
+		case "rotate":
+			return cmdAgentRotate(rest[1:])
 		}
 		return fmt.Errorf("unknown agent command %q\n  (see `hug agent --help`)", rest[0])
 	case "setup":
@@ -511,6 +514,77 @@ func addRepos(cfg *Config, c *client, o out, name string, repos []string) ([]str
 	}
 	o.event("repos_added", map[string]any{"agent": name, "added": r.Added, "repos": r.Repos}, msg)
 	return r.Repos, nil
+}
+
+func cmdAgentRotate(args []string) error {
+	fs := flag.NewFlagSet("agent rotate", flag.ContinueOnError)
+	all := fs.Bool("all", false, "")
+	printKey := fs.Bool("print", false, "")
+	asJSON := fs.Bool("json", false, "")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if *all == (len(pos) == 1) || len(pos) > 1 || (len(pos) == 1 && !agentRE.MatchString(pos[0])) {
+		return usageError("agent rotate")
+	}
+	cfg, c, err := accountClient(*asJSON)
+	if err != nil {
+		return err
+	}
+	names := pos
+	if *all {
+		for name := range cfg.Agents {
+			names = append(names, name)
+		}
+		if len(names) == 0 {
+			return errors.New("no agent keys on this machine (see `hug agent list`)")
+		}
+		sort.Strings(names) // parents before their sub-agents (orbit < orbit-w1)
+	}
+	o := out{*asJSON}
+	var failed []string
+	for _, name := range names {
+		var r struct {
+			Key              string `json:"key"`
+			DisabledChildren int    `json:"disabled_children"`
+		}
+		if _, err := c.do("POST", "/v1/agents/"+name+"/rotate", cfg.AccountKey, nil, &r); err != nil {
+			var ae *apiError
+			if errors.As(err, &ae) && ae.Status == 404 {
+				err = fmt.Errorf("no agent %q on your account (see `hug agent list`)", name)
+			}
+			if !*all {
+				return err
+			}
+			failed = append(failed, name)
+			o.event("rotate_failed", map[string]any{"agent": name, "error": err.Error()}, "  "+name+": "+err.Error())
+			continue
+		}
+		// The old key is dead from here: save the new one before anything else can fail.
+		cfg.Agents[name] = r.Key
+		if err := cfg.save(); err != nil {
+			fmt.Fprintf(stderr, "hug: could not save the new key for %s; it is:\n%s\n", name, r.Key)
+			return err
+		}
+		clearTokenCache(name)
+		fields := map[string]any{"agent": name, "rotated": true, "children_disabled": r.DisabledChildren}
+		msg := "  Rotated " + name + "; the new key is saved on this machine."
+		if r.DisabledChildren > 0 {
+			msg += fmt.Sprintf(" Disabled %d sub-agent(s) the old key could have made; re-enable the ones you trust on its page.", r.DisabledChildren)
+		}
+		if *printKey {
+			fields["key"] = r.Key
+			msg += "\n  " + r.Key
+		}
+		o.event("rotated", fields, msg)
+	}
+	o.event("note", map[string]any{"tokens": "GitHub tokens minted with an old key in the last hour stay valid until they expire"},
+		"  GitHub tokens minted with an old key in the last hour stay valid until they expire.")
+	if len(failed) > 0 {
+		return fmt.Errorf("could not rotate %s", strings.Join(failed, ", "))
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
