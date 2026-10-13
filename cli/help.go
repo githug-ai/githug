@@ -222,6 +222,23 @@ disables everything under it.`,
 		},
 		example: []string{`eval "$(hug agent spawn w1 --env)"`},
 	},
+	"config": {
+		usage:   "config show",
+		summary: "Show hug's settings",
+		details: "Run 'hug config show --help' for details.",
+	},
+	"config show": {
+		usage:   "config show [--json]",
+		summary: "Show hug's settings, with every key redacted",
+		details: `The way to check hug's settings: prints the config file's path, the githug URL, your
+login, the default agent, and where each key is kept, never the keys themselves.
+
+Keys live in the OS keychain (macOS Keychain, or Secret Service on Linux) when there is one;
+config.json then holds only "keychain" in their place. Without one, or with HUG_KEYCHAIN=0
+(CI), they stay in config.json (mode 0600). Keys in an older config.json move to the
+keychain the next time hug runs.`,
+		see: []string{"agent list", "agent rotate"},
+	},
 	"version": {
 		usage:   "version",
 		summary: "Print hug's version",
@@ -239,7 +256,7 @@ var helpGroups = []struct {
 }{
 	{"Get started", []string{"init", "setup"}},
 	{"Work as the agent", []string{"pr create", "run", "env", "token", "attest"}},
-	{"Manage agents", []string{"agent list", "agent create", "agent add-repo", "agent credit", "agent rotate", "agent spawn", "repos", "login"}},
+	{"Manage agents", []string{"agent list", "agent create", "agent add-repo", "agent credit", "agent rotate", "agent spawn", "repos", "login", "config show"}},
 	{"", []string{"version", "help"}},
 }
 
@@ -357,6 +374,7 @@ Environment:
   GITHUG_RUN         run id for tokens and commits (hug run sets it)
   GITHUG_URL         githug instance (default https://githug.ai, or what --url saved)
   HUG_CONFIG         config file (default ~/.config/hug/config.json)
+  HUG_KEYCHAIN=0     keep keys in the config file, not the OS keychain (CI)
 
 Docs: https://githug.ai/docs
 `)

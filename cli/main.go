@@ -81,6 +81,11 @@ func run(args []string) error {
 			return cmdAgentCredit(rest[1:])
 		}
 		return fmt.Errorf("unknown agent command %q\n  (see `hug agent --help`)", rest[0])
+	case "config":
+		if len(rest) == 0 || rest[0] != "show" {
+			return usageError("config show")
+		}
+		return cmdConfigShow(rest[1:])
 	case "setup":
 		return cmdSetup(rest)
 	case "credential":

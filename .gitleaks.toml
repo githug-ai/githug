@@ -16,3 +16,16 @@ regexes = [
   # GitHub App OAuth client id: public, like any OAuth client id
   '''Iv23liDOov4dYldLbiJL''',
 ]
+
+# githug's own keys: catch one pasted into a commit (32 random bytes, base64url).
+[[rules]]
+id = "githug-agent-key"
+description = "githug agent key"
+regex = '''\bghg_[A-Za-z0-9_-]{43}\b'''
+keywords = ["ghg_"]
+
+[[rules]]
+id = "githug-account-key"
+description = "githug account key (hug CLI)"
+regex = '''\bhug_[A-Za-z0-9_-]{43}\b'''
+keywords = ["hug_"]
