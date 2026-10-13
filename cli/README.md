@@ -34,8 +34,9 @@ Quickstarts for Claude Code, Codex, GitHub Actions and your own loop: [githug.ai
 - **Stored**, in `~/.config/hug/` (mode 0600): your account key from device login (`hug_…`), the keys of agents created on this machine (`ghg_…`), and cached GitHub tokens until 5 minutes before they expire. `HUG_CONFIG` moves it.
 - **Never stored**: your GitHub password or your own GitHub token. Device login happens on github.com; githug keeps the grant server-side and gives `hug` its own key.
 - **Sent**, only to githug.ai (`--url` or `GITHUG_URL` override it): the agent key, the repo, the optional run id, the SHAs of commits you push (attestation), and for PRs the title, body, branches and labels. No code.
+- **Read from GitHub** during `hug setup`, with the agent's token: the repo's tag rulesets, to warn when a tag-triggered release workflow isn't protected.
 
-Tokens come from a GitHub App, scoped to one repository, and expire after an hour. They can push branches and work issues and PRs, nothing else. Your branch protection still guards main.
+Tokens come from a GitHub App, scoped to one repository, and expire after an hour. They can push branches and tags and work issues and PRs, nothing else. Your branch protection still guards main; protect release tags with a tag ruleset (`hug setup` warns when a tag-triggered workflow has none).
 
 ## Build
 

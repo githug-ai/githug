@@ -174,6 +174,9 @@ func cmdSetup(args []string) error {
 		}
 	}
 	fmt.Fprintf(stderr, "githug set up for %s as %s (%s).\n  git push: fresh 1-hour token per push\n  commit author: %s <%s>\n  hooks (trailers, push attestation): %s\n", repoName, t.Agent.ID, t.Author.Name, t.Author.Name, t.Author.Email, hookNote)
+	if top, err := gitOut("rev-parse", "--show-toplevel"); err == nil {
+		fmt.Fprint(stderr, releaseTagWarning(top, t.Token, repoName))
+	}
 	return nil
 }
 

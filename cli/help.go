@@ -57,7 +57,10 @@ the repo instead of creating a new one.`,
 		summary: "In a clone: git commit and git push work as the agent",
 		details: `Configures the clone you're in: commits are authored as the agent, hug becomes git's
 credential helper (a fresh 1-hour token per push), a prepare-commit-msg hook adds the
-trailers, and a pre-push hook attests each pushed commit so githug shows it as verified.`,
+trailers, and a pre-push hook attests each pushed commit so githug shows it as verified.
+
+If a workflow here runs on a tag push (a release) and no tag ruleset covers that tag, setup
+warns you: the agent can push tags, so its key could publish a release with no review.`,
 		flags: []string{
 			"--agent NAME        which agent (default: the default agent, or GITHUG_AGENT_KEY)",
 			"--repo owner/repo   default: read from the origin remote",
