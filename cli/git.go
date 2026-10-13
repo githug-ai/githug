@@ -119,11 +119,24 @@ func cmdSetup(args []string) error {
 	agentF := fs.String("agent", "", "")
 	repoF := fs.String("repo", "", "")
 	noHook := fs.Bool("no-hook", false, "")
+	envF := fs.Bool("env", false, "")
+	force := fs.Bool("force", false, "")
+	undo := fs.Bool("undo", false, "")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
 	if _, err := gitOut("rev-parse", "--git-dir"); err != nil {
 		return errors.New("not in a git repository")
+	}
+	if *undo {
+		return setupUndo()
+	}
+	// A clone shared by a person and an agent session gets the agent's identity from the
+	// session's environment (GIT_CONFIG_*, see --env). Writing .git/config there would make
+	// every commit in the clone the agent's, the person's own included.
+	if origin, _ := gitOut("config", "--show-origin", "--get", "githug.agent"); !*envF && !*force && strings.HasPrefix(origin, "command line:") {
+		fmt.Fprintln(stderr, "This clone gets its githug identity from the environment (GIT_CONFIG_*), per session.\n  Changed nothing: writing .git/config would make every commit here the agent's, yours too.\n  `hug setup --force` writes it anyway.")
+		return nil
 	}
 	cfg, err := loadConfig()
 	if err != nil {
@@ -152,36 +165,98 @@ func cmdSetup(args []string) error {
 		return err
 	}
 	self = shellQuote(self)
-	steps := [][]string{
-		{"config", "--local", "user.name", t.Author.Name},
-		{"config", "--local", "user.email", t.Author.Email},
-		{"config", "--local", "githug.agent", name},
-		{"config", "--local", "githug.repo", repoName},
-		// An empty helper first resets inherited helpers (keychain, gh) so pushes never fall back to a person's credentials.
-		{"config", "--local", "--replace-all", "credential.https://github.com.helper", ""},
-		{"config", "--local", "--add", "credential.https://github.com.helper", "!" + self + " credential"},
-	}
-	for _, s := range steps {
-		if err := gitRun(s...); err != nil {
-			return fmt.Errorf("git %s: %w", strings.Join(s, " "), err)
-		}
+	// An empty helper first resets inherited helpers (keychain, gh) so pushes never fall back to a person's credentials.
+	settings := [][2]string{
+		{"user.name", t.Author.Name},
+		{"user.email", t.Author.Email},
+		{"githug.agent", name},
+		{"githug.repo", repoName},
+		{"credential.https://github.com.helper", ""},
+		{"credential.https://github.com.helper", "!" + self + " credential"},
 	}
 	hookNote := "skipped (--no-hook)"
-	if !*noHook {
-		hookNote, err = installHook(self)
-		if err != nil {
-			return err
+	if *envF {
+		env := map[string]string{"GIT_CONFIG_COUNT": fmt.Sprint(len(settings))}
+		for i, kv := range settings {
+			env[fmt.Sprintf("GIT_CONFIG_KEY_%d", i)], env[fmt.Sprintf("GIT_CONFIG_VALUE_%d", i)] = kv[0], kv[1]
 		}
+		b, _ := json.MarshalIndent(map[string]any{"env": env}, "", "  ")
+		fmt.Fprintln(stdout, string(b))
+		if !*noHook {
+			if hookNote, err = installHook(self); err != nil {
+				hookNote = "not installed: " + err.Error()
+			}
+		}
+		fmt.Fprintf(stderr, "Put that env block in the agent tool's settings (Claude Code: .claude/settings.local.json).\n  Sessions started with it commit and push as %s; .git/config is unchanged, so your own commits stay yours.\n  hooks (trailers, push attestation, only when an agent is configured): %s\n", t.Agent.ID, hookNote)
+	} else {
+		if err := gitRun("config", "--local", "--unset-all", settings[4][0]); err != nil && !isExit(err, 5) {
+			return fmt.Errorf("git config --unset-all %s: %w", settings[4][0], err)
+		}
+		for _, kv := range settings {
+			mode := "--replace-all"
+			if kv[0] == settings[4][0] {
+				mode = "--add" // the helper is a list: reset (empty), then hug
+			}
+			if err := gitRun("config", "--local", mode, kv[0], kv[1]); err != nil {
+				return fmt.Errorf("git config %s: %w", kv[0], err)
+			}
+		}
+		if !*noHook {
+			if hookNote, err = installHook(self); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(stderr, "githug set up for %s as %s (%s).\n  git push: fresh 1-hour token per push\n  commit author: %s <%s>\n  hooks (trailers, push attestation): %s\n  wrote to .git/config: user.name, user.email, githug.agent, githug.repo, the credential helper (undo: hug setup --undo)\n", repoName, t.Agent.ID, t.Author.Name, t.Author.Name, t.Author.Email, hookNote)
 	}
-	fmt.Fprintf(stderr, "githug set up for %s as %s (%s).\n  git push: fresh 1-hour token per push\n  commit author: %s <%s>\n  hooks (trailers, push attestation): %s\n", repoName, t.Agent.ID, t.Author.Name, t.Author.Name, t.Author.Email, hookNote)
 	if top, err := gitOut("rev-parse", "--show-toplevel"); err == nil {
 		fmt.Fprint(stderr, releaseTagWarning(top, t.Token, repoName))
 	}
 	return nil
 }
 
+// setupUndo removes what `hug setup` wrote: the agent's identity, the githug keys, the
+// credential helper and hug's own hooks. Anything else in .git/config is left alone.
+func setupUndo() error {
+	var removed []string
+	unset := func(key string) {
+		if gitRun("config", "--local", "--unset-all", key) == nil {
+			removed = append(removed, key)
+		}
+	}
+	// setup writes the author together with githug.agent; without it, user.* is someone's own.
+	if a, _ := gitOut("config", "--local", "--get", "githug.agent"); a != "" {
+		unset("user.name")
+		unset("user.email")
+	}
+	unset("githug.agent")
+	unset("githug.repo")
+	unset("credential.https://github.com.helper")
+	if dir, err := gitOut("rev-parse", "--git-path", "hooks"); err == nil {
+		for _, name := range []string{"prepare-commit-msg", "pre-push"} {
+			path := filepath.Join(dir, name)
+			if b, err := os.ReadFile(path); err == nil && strings.Contains(string(b), hookMarker) && os.Remove(path) == nil {
+				removed = append(removed, path)
+			}
+		}
+	}
+	if len(removed) == 0 {
+		fmt.Fprintln(stderr, "Nothing to undo: hug setup hasn't configured this clone.")
+		return nil
+	}
+	fmt.Fprintf(stderr, "Removed %s.\n  Commits here use your own git identity again.\n", strings.Join(removed, ", "))
+	return nil
+}
+
+// isExit: git exited with this code (git config --unset-all exits 5 when the key isn't set).
+func isExit(err error, code int) bool {
+	var ee *exec.ExitError
+	return errors.As(err, &ee) && ee.ExitCode() == code
+}
+
 // installHook installs both hooks: prepare-commit-msg (trailers) and pre-push (attests the
-// pushed commits with the agent's key, which is what makes them "verified" on githug).
+// pushed commits with the agent's key, which is what makes them "verified" on githug). They
+// act only when an agent is configured, so a person's own commits in a shared clone (agent
+// identity from a session's GIT_CONFIG_*) get nothing added.
 func installHook(self string) (string, error) {
 	dir, err := gitOut("rev-parse", "--git-path", "hooks")
 	if err != nil {
@@ -196,7 +271,9 @@ func installHook(self string) (string, error) {
 		if b, err := os.ReadFile(path); err == nil && !strings.Contains(string(b), hookMarker) {
 			return "", fmt.Errorf("%s already exists; add `%s hook %s \"$@\"` to it, or run setup with --no-hook", path, self, name)
 		}
-		script := "#!/bin/sh\n" + hookMarker + "\nexec " + self + " hook " + name + " \"$@\"\n"
+		script := "#!/bin/sh\n" + hookMarker + "\n" +
+			`[ -n "$(git config --get githug.agent)" ] || [ -n "$GITHUG_AGENT_KEY" ] || exit 0` + "\n" +
+			"exec " + self + " hook " + name + " \"$@\"\n"
 		if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 			return "", err
 		}
