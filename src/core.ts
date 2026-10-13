@@ -558,6 +558,21 @@ app.post("/app/agents/:id/rotate", async (c) => {
   return c.html(agentPage(account, agent, { runs: await agentRuns(c.env.DB, id), rotatedKey: rotated.key, disabledChildren: rotated.disabledChildren, identity: await identityInfo(c, id) }));
 });
 
+// The CLI's twin of the rotate button (`hug agent rotate`): the new key comes back once, for
+// hug to store; the old key stops working at once and its sub-agents are disabled.
+app.post("/v1/agents/:id/rotate", async (c) => {
+  const account = await currentAccount(c);
+  if (!account || !sameOrigin(c)) return c.json({ error: "unauthorized" }, 401);
+  if (!(await c.env.WRITE_LIMITER.limit({ key: `app:${account.id}` })).success) return c.json({ error: "rate limited" }, 429);
+  const id = c.req.param("id").toLowerCase();
+  const owned = await findAccountAgent(c.env.DB, id, account.id);
+  if (!owned || !(await canManage(c, account, owned))) return c.json({ error: "no such agent" }, 404);
+  const rotated = await rotateAgentKey(c.env.DB, id, account.id);
+  if (!rotated) return c.json({ error: "no such agent" }, 404);
+  c.header("Cache-Control", "private, no-store");
+  return c.json({ ok: true, agent: id, key: rotated.key, disabled_children: rotated.disabledChildren, note: "Store this key now; it is not shown again." });
+});
+
 app.post("/app/logins/:id/revoke", async (c) => {
   const account = await currentAccount(c);
   if (!account) return c.redirect("/login?next=/app", 302);
