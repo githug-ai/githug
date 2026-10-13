@@ -1022,6 +1022,37 @@ app.post("/v1/commits", async (c) => {
   return c.json({ ok: true, attested: added });
 });
 
+/** The commit trailers for an agent's commits, from its settings as they are now. */
+async function agentTrailers(c: any, agent: AgentRow, run: string): Promise<string[]> {
+  // Co-authored-by (which GitHub counts on the human's contribution graph) only when the
+  // agent has graph credit on and the accountable human has signed in to githug.
+  // Accountable: is always there and doesn't touch the graph.
+  const human = agent.credit_human && agent.accountable ? await findGatewayUser(c.env.DB, { login: agent.accountable, id: agent.accountable_id }) : null;
+  return [
+    ...(human?.email ? [`Co-authored-by: ${human.login} <${human.email}>`] : []),
+    `Accountable: ${agent.accountable}`,
+    `Agent: ${agent.id}`,
+    // Sub-agents (M2.6) carry the whole lineage: human › root agent › … › this one.
+    ...(agent.parent ? [`Agent-Chain: ${[agent.accountable, ...(await agentChain(c.env.DB, agent))].join(" › ")}`] : []),
+    ...(run ? [`Run: ${run}`] : []),
+  ];
+}
+
+// Trailers without a mint, for the commit hook: a cached token outlives settings changes
+// (graph credit), and trailers carry no secret, so hug asks for them fresh on every commit.
+app.post("/v1/trailers", async (c) => {
+  const auth = c.req.header("authorization") ?? "";
+  const agent = auth.startsWith("Bearer ") ? await findAgentByKey(c.env.DB, auth.slice(7).trim()) : null;
+  if (!agent) return c.json({ error: "invalid agent key" }, 401);
+  if (agent.disabled) return c.json({ error: "agent disabled" }, 403);
+  if (!(await c.env.VERIFY_LIMITER.limit({ key: `trailers:${agent.id}` })).success) return c.json({ error: "rate limited" }, 429);
+  const body = await c.req.json().catch(() => ({}) as any);
+  const repo = typeof body?.repo === "string" ? body.repo : "";
+  if (!validRepo(repo)) return c.json({ error: "repo required (owner/repo)" }, 400);
+  if (!agent.repos.some((r) => r.toLowerCase() === repo.toLowerCase())) return c.json({ error: `agent '${agent.id}' is not allowed on ${repo}` }, 403);
+  return c.json({ trailers: await agentTrailers(c, agent, String(body?.run ?? "").slice(0, 120)) });
+});
+
 // The one endpoint agents call: bearer agent key → 1h installation token for one repo.
 app.post("/v1/token", async (c) => {
   const ip = c.req.header("cf-connecting-ip") ?? "unknown";
@@ -1051,18 +1082,7 @@ app.post("/v1/token", async (c) => {
     // All mints today are authenticated by the agent's own bearer key.
     const mintedBy = `agent:${agent.id}`;
     c.executionCtx.waitUntil(logToken(c.env.DB, { agent_id: agent.id, repo, installation_id: installationId, expires: minted.expires_at, ip_hash: ipHash, run, minted_by: mintedBy, surface }));
-    // Co-authored-by (which GitHub counts on the human's contribution graph) only when the
-    // agent has graph credit on and the accountable human has signed in to githug.
-    // Accountable: is always there and doesn't touch the graph.
-    const human = agent.credit_human && agent.accountable ? await findGatewayUser(c.env.DB, { login: agent.accountable, id: agent.accountable_id }) : null;
-    const trailers = [
-      ...(human?.email ? [`Co-authored-by: ${human.login} <${human.email}>`] : []),
-      `Accountable: ${agent.accountable}`,
-      `Agent: ${agent.id}`,
-      // Sub-agents (M2.6) carry the whole lineage: human › root agent › … › this one.
-      ...(agent.parent ? [`Agent-Chain: ${[agent.accountable, ...(await agentChain(c.env.DB, agent))].join(" › ")}`] : []),
-      ...(run ? [`Run: ${run}`] : []),
-    ];
+    const trailers = await agentTrailers(c, agent, run);
     return c.json({
       token: minted.token,
       expires_at: minted.expires_at,
