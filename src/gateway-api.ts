@@ -1428,7 +1428,7 @@ export async function mintForAgent(env: GatewayEnv, agent: AgentRow, repo: strin
       const bot = app.bot_id ? { login: `${app.slug}[bot]`, email: `${app.bot_id}+${app.slug}[bot]@users.noreply.github.com` } : null;
       return { token: data.token, expires_at: data.expires_at, permissions: data.permissions ?? {}, installation_id: app.installation_id, bot, named: true };
     } catch (e) {
-      fallback = (e as Error).message;
+      fallback = (e as Error)?.message || "mint failed"; // never empty, or the spread below would hide it
       console.error(`named mint for ${agent.id} failed, using shared App:`, fallback);
     }
   }
