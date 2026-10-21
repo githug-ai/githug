@@ -1398,6 +1398,8 @@ export interface AgentMint extends MintedToken {
   /** The bot the token acts as: the agent's own <slug>[bot], or the shared App's. */
   bot: { login: string; email: string } | null;
   named: boolean;
+  /** Set when the agent has its own App but the mint through it failed and the shared App minted instead. */
+  fallback?: string;
 }
 
 /**
@@ -1406,6 +1408,7 @@ export interface AgentMint extends MintedToken {
  */
 export async function mintForAgent(env: GatewayEnv, agent: AgentRow, repo: string, permissions?: Record<string, string>): Promise<AgentMint> {
   const app = await getAgentApp(env, agent.id).catch(() => null);
+  let fallback: string | undefined;
   if (app?.installation_id) {
     try {
       const jwt = await appJwtFor(app.app_id, app.pem);
@@ -1425,14 +1428,15 @@ export async function mintForAgent(env: GatewayEnv, agent: AgentRow, repo: strin
       const bot = app.bot_id ? { login: `${app.slug}[bot]`, email: `${app.bot_id}+${app.slug}[bot]@users.noreply.github.com` } : null;
       return { token: data.token, expires_at: data.expires_at, permissions: data.permissions ?? {}, installation_id: app.installation_id, bot, named: true };
     } catch (e) {
-      console.error(`named mint for ${agent.id} failed, using shared App:`, (e as Error).message);
+      fallback = (e as Error).message;
+      console.error(`named mint for ${agent.id} failed, using shared App:`, fallback);
     }
   }
   const { minted, installationId } = await withInstallation(env, repo, async (installationId) => ({
     minted: await mintInstallationToken(env, installationId, repo, permissions ?? undefined),
     installationId,
   }));
-  return { ...minted, installation_id: installationId, bot: await botIdentity(env, minted.token), named: false };
+  return { ...minted, installation_id: installationId, bot: await botIdentity(env, minted.token), named: false, ...(fallback && { fallback }) };
 }
 
 /** Agent id for a commit author email of a named agent App's bot (<id>+<slug>[bot]@…). */

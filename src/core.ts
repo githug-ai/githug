@@ -1097,6 +1097,9 @@ app.post("/v1/token", async (c) => {
       author: minted.named && bot ? { name: agent.name, email: bot.email } : { name: agent.name, email: agent.email },
       identity: bot?.login ?? null,
       named: minted.named,
+      // The agent has its own App but minting through it failed, so this token acts as the shared
+      // bot: GitHub can't tell this agent apart for this run. Surfaced instead of hidden.
+      ...(minted.fallback && { fallback: true, warning: `Minting through ${agent.id}'s own GitHub App failed; this token acts as the shared App.` }),
       // Commit as the app's bot user but with the agent's name, so the log reads
       // "orbit" with the app avatar; the human stays on the Accountable: trailer.
       git_author: bot ? { name: agent.name, email: bot.email } : null,
