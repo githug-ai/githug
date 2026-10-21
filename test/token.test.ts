@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeEnv, call, withGitHub, signIn, repo } from "./helpers.ts";
+import * as gw from "../src/gateway-api.ts";
 
 async function setup(t: any) {
   const gh = withGitHub(t);
@@ -159,4 +160,16 @@ test("/v1/trailers follows the agent's settings as they are now, without minting
   assert.equal((await trailers({ repo: "ana/api" }, { authorization: "Bearer ghg_nope" })).status, 401);
   await call(env, "POST", "/v1/agents/orbit/disable", { headers: s.bearer });
   assert.equal((await trailers({ repo: "ana/api" })).status, 403);
+});
+
+test("the audit-log IP hash is keyed, stable per address, and not a bare SHA-256", async () => {
+  const a = makeEnv();
+  const b = makeEnv();
+  const h = await gw.hashIp(a, "198.51.100.7");
+  assert.match(h, /^[0-9a-f]{24}$/);
+  assert.equal(h, await gw.hashIp(a, "198.51.100.7"), "stable for one address and key");
+  assert.notEqual(h, await gw.hashIp(a, "198.51.100.8"));
+  assert.notEqual(h, await gw.hashIp(b, "198.51.100.7"), "a different key gives a different hash");
+  assert.notEqual(h, (await gw.sha256Hex("198.51.100.7")).slice(0, 24), "not the unkeyed hash an attacker could precompute");
+  assert.equal(await gw.hashIp(a, "unknown"), "");
 });

@@ -70,7 +70,7 @@ import {
   attestCommits,
   recheckAgentScopes,
   githubCommitIdentity,
-  sha256Hex,
+  hashIp,
   type Account,
   type AgentRow,
 } from "./gateway-api.js";
@@ -1017,7 +1017,7 @@ app.post("/v1/commits", async (c) => {
   const shas: unknown[] = Array.isArray(body?.shas) ? body.shas : [];
   if (!shas.length || shas.length > 500 || !shas.every((s) => typeof s === "string" && /^[0-9a-f]{40}$/i.test(s))) return c.json({ error: "shas must be 1–500 full commit SHAs" }, 400);
   const run = String(body?.run ?? "").slice(0, 120);
-  const ipHash = ip !== "unknown" ? (await sha256Hex(ip)).slice(0, 24) : "";
+  const ipHash = await hashIp(c.env, ip);
   const added = await attestCommits(c.env.DB, agent, repo, (shas as string[]).map((s) => s.toLowerCase()), run, ipHash);
   return c.json({ ok: true, attested: added });
 });
@@ -1078,7 +1078,7 @@ app.post("/v1/token", async (c) => {
     const minted = await mintForAgent(c.env, agent, repo, agent.permissions ?? undefined);
     const installationId = minted.installation_id;
     const bot = minted.bot;
-    const ipHash = ip !== "unknown" ? (await sha256Hex(ip)).slice(0, 24) : "";
+    const ipHash = await hashIp(c.env, ip);
     // All mints today are authenticated by the agent's own bearer key.
     const mintedBy = `agent:${agent.id}`;
     c.executionCtx.waitUntil(logToken(c.env.DB, { agent_id: agent.id, repo, installation_id: installationId, expires: minted.expires_at, ip_hash: ipHash, run, minted_by: mintedBy, surface }));
