@@ -893,16 +893,27 @@ export async function pollDeviceFlow(env: GatewayEnv, deviceCode: string): Promi
 // ---------------------------------------------------------------------------
 const READ_PERMISSIONS = { contents: "read", pull_requests: "read", metadata: "read" };
 
+/**
+ * githug's own read token for one repo (verify page, strict verify, PR tracking). Scoped to
+ * that repo, not the whole installation, and cached encrypted: KV holds only ciphertext, and
+ * without GATEWAY_ENC_KEY nothing is cached.
+ */
 async function readToken(env: GatewayEnv, repo: string): Promise<string> {
   return withInstallation(env, repo, async (installationId) => {
-    const key = `gw:rtok:${installationId}`;
+    const key = `gw:rtok:${installationId}:${repo.toLowerCase()}`;
     const hit = await env.CACHE.get(key);
-    if (hit) return hit;
+    if (hit) {
+      try {
+        return await decryptSecret(env, hit);
+      } catch {
+        // unreadable (key rotated, or a stale entry): mint a fresh one
+      }
+    }
     const data = await gh(`/app/installations/${installationId}/access_tokens`, await appJwt(env), {
       method: "POST",
-      body: JSON.stringify({ permissions: READ_PERMISSIONS }),
+      body: JSON.stringify({ repositories: [repo.split("/")[1]], permissions: READ_PERMISSIONS }),
     });
-    await env.CACHE.put(key, data.token, { expirationTtl: 50 * 60 });
+    if (env.GATEWAY_ENC_KEY) await env.CACHE.put(key, await encryptSecret(env, data.token), { expirationTtl: 50 * 60 });
     return data.token;
   });
 }
