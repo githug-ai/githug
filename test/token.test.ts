@@ -204,3 +204,23 @@ test("a PR opened as the agent says when it fell back to the shared App", async 
   assert.equal(j.fallback, true);
   assert.match(j.warning, /orbit's own GitHub App failed; this PR was opened as the shared App/);
 });
+
+test("githug's read token is scoped to one repo and cached encrypted", async (t) => {
+  const { gh, env } = await setup(t);
+  const sha = "a".repeat(40);
+  gh.commitInfo.set(`ana/api@${sha}`, { login: "ana", verified: false });
+  assert.deepEqual(await gw.githubCommitIdentity(env, "ana/api", sha), { login: "ana", signed: false });
+  const read = gh.minted.at(-1);
+  assert.deepEqual(read.body.repositories, ["api"], "one repo, not the whole installation");
+  assert.deepEqual(read.body.permissions, { contents: "read", pull_requests: "read", metadata: "read" });
+  const stored = await env.CACHE.get("gw:rtok:7:ana/api");
+  assert.ok(stored && !stored.includes("ghs_"), "the cached value is ciphertext");
+  const before = gh.minted.length;
+  await gw.githubCommitIdentity(env, "ana/api", sha);
+  assert.equal(gh.minted.length, before, "second read uses the cache");
+  // without an encryption key nothing is cached
+  const bare = { ...env, GATEWAY_ENC_KEY: undefined, CACHE: env.CACHE };
+  await env.CACHE.delete("gw:rtok:7:ana/api");
+  await gw.githubCommitIdentity(bare, "ana/api", sha);
+  assert.equal(await env.CACHE.get("gw:rtok:7:ana/api"), null, "no plaintext fallback");
+});

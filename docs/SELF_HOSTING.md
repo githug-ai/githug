@@ -114,7 +114,7 @@ The verify Action takes `githug-url: https://<your-instance>`.
 | `GATEWAY_ENC_KEY` | generated (container) | 32 bytes, base64 |
 | `IP_HASH_SALT` | `GATEWAY_ENC_KEY` | Keys the hash of requester IPs in the audit log |
 | `STATS_USER` / `STATS_PASSWORD` | `admin` / generated | The App setup page |
-| `ADMIN_TOKEN` | unset (admin API off) | Bearer token for the admin API |
+| `ADMIN_TOKEN` | unset (admin API off) | Bearer token for the admin API. It is the operator's root key: `POST /v1/agents` with it takes any permission map and skips the check that the human can push to the repos. GitHub still limits what the App can mint |
 | `PORT` · `GITHUG_DATA` · `GITHUG_TRUST_PROXY` · `GITHUG_CRON_MINUTES` | `8080` · `/data` · off · `240` | Container only |
 
 The GitHub App can also be given entirely by env (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`
