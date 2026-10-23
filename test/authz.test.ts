@@ -153,3 +153,16 @@ test("a renamed login re-claimed by someone else doesn't hand over their GitHub 
   assert.equal(await gw.getUserToken(env, { login: "ana", id: 101 }), null);
   assert.equal(await gw.getUserToken(env, { login: "ana", id: 303 }), cat.token);
 });
+
+test("a hug account key can't turn on workflows for an agent; the dashboard session can", async (t) => {
+  const gh = withGitHub(t);
+  const env = makeEnv();
+  const ana = gh.addUser({ login: "ana", id: 101, installations: [{ id: 7, account: { login: "ana", id: 101, type: "User" }, repos: [repo("ana/api", "admin")] }] });
+  const a = await signIn(env, ana);
+  assert.equal((await call(env, "POST", "/v1/agents", { body: { id: "orbit", repos: ["ana/api"] }, headers: a.bearer })).status, 200);
+  const viaKey = await call(env, "POST", "/app/agents/orbit/workflows", { form: { on: "1" }, headers: a.bearer });
+  assert.equal(viaKey.status, 403);
+  assert.equal((await gw.findAccountAgent(env.DB, "orbit", "gh:101"))?.permissions?.workflows, undefined, "the account key can't grant workflows");
+  await call(env, "POST", "/app/agents/orbit/workflows", { form: { on: "1" }, headers: { cookie: a.cookie } });
+  assert.equal((await gw.findAccountAgent(env.DB, "orbit", "gh:101"))?.permissions?.workflows, "write", "the dashboard session can");
+});

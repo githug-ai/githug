@@ -1261,6 +1261,9 @@ export interface OpenedPr {
   number: number;
   url: string;
   opened_as: "human" | "agent";
+  /** Set when the PR was opened with a token from the shared App because the agent's own App failed to mint. */
+  fallback?: true;
+  warning?: string;
 }
 
 export async function openPullRequest(
@@ -1272,7 +1275,8 @@ export async function openPullRequest(
   // as=agent: the agent's bot is the author, so its human can still approve the PR when
   // branch protection requires a review (GitHub won't let authors approve their own).
   const userToken = p.as !== "agent" && agent.accountable ? await getUserToken(env, agent.accountable).catch(() => null) : null;
-  const token = userToken ?? (await mintForAgent(env, agent, p.repo, { pull_requests: "write", issues: "write", metadata: "read" })).token;
+  const minted = userToken ? null : await mintForAgent(env, agent, p.repo, { pull_requests: "write", issues: "write", metadata: "read" });
+  const token = userToken ?? minted!.token;
   const pr = await gh(`/repos/${p.repo}/pulls`, token, {
     method: "POST",
     body: JSON.stringify({ title: p.title, head: p.head, base: p.base, draft: p.draft, body: p.body + prFooter(p.repo, null, agent, p.run) }),
@@ -1284,7 +1288,12 @@ export async function openPullRequest(
   await env.DB.prepare("INSERT INTO gateway_actions (repo,kind,ref,agent_id,chain,run,credential,created) VALUES (?,?,?,?,?,?,?,?)")
     .bind(p.repo, "pr_open", String(pr.number), agent.id, JSON.stringify([`user:${agent.accountable}`, `agent:${agent.id}`]), p.run, openedAs === "human" ? "user" : "installation", new Date().toISOString())
     .run();
-  return { number: pr.number, url: pr.html_url, opened_as: openedAs };
+  return {
+    number: pr.number,
+    url: pr.html_url,
+    opened_as: openedAs,
+    ...(minted?.fallback && { fallback: true as const, warning: `Minting through ${agent.id}'s own GitHub App failed; this PR was opened as the shared App.` }),
+  };
 }
 
 export type VerifyPullResult =
@@ -1414,6 +1423,8 @@ export interface AgentMint extends MintedToken {
   /** The bot the token acts as: the agent's own <slug>[bot], or the shared App's. */
   bot: { login: string; email: string } | null;
   named: boolean;
+  /** Set when the agent has its own App but the mint through it failed and the shared App minted instead. */
+  fallback?: string;
 }
 
 /**
@@ -1422,6 +1433,7 @@ export interface AgentMint extends MintedToken {
  */
 export async function mintForAgent(env: GatewayEnv, agent: AgentRow, repo: string, permissions?: Record<string, string>): Promise<AgentMint> {
   const app = await getAgentApp(env, agent.id).catch(() => null);
+  let fallback: string | undefined;
   if (app?.installation_id) {
     try {
       const jwt = await appJwtFor(app.app_id, app.pem);
@@ -1441,14 +1453,15 @@ export async function mintForAgent(env: GatewayEnv, agent: AgentRow, repo: strin
       const bot = app.bot_id ? { login: `${app.slug}[bot]`, email: `${app.bot_id}+${app.slug}[bot]@users.noreply.github.com` } : null;
       return { token: data.token, expires_at: data.expires_at, permissions: data.permissions ?? {}, installation_id: app.installation_id, bot, named: true };
     } catch (e) {
-      console.error(`named mint for ${agent.id} failed, using shared App:`, (e as Error).message);
+      fallback = (e as Error)?.message || "mint failed"; // never empty, or the spread below would hide it
+      console.error(`named mint for ${agent.id} failed, using shared App:`, fallback);
     }
   }
   const { minted, installationId } = await withInstallation(env, repo, async (installationId) => ({
     minted: await mintInstallationToken(env, installationId, repo, permissions ?? undefined),
     installationId,
   }));
-  return { ...minted, installation_id: installationId, bot: await botIdentity(env, minted.token), named: false };
+  return { ...minted, installation_id: installationId, bot: await botIdentity(env, minted.token), named: false, ...(fallback && { fallback }) };
 }
 
 /** Agent id for a commit author email of a named agent App's bot (<id>+<slug>[bot]@…). */

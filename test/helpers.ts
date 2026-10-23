@@ -138,6 +138,8 @@ export class FakeGitHub {
       this.minted.push({ installation: Number(m[1]), body });
       return this.json({ token: `ghs_${this.minted.length}`, expires_at: new Date(Date.now() + 3600_000).toISOString(), permissions: body.permissions ?? {} }, 201);
     }
+    if ((m = /^\/repos\/([^/]+\/[^/]+)\/pulls$/.exec(p)) && method === "POST") return this.json({ number: 1, html_url: `https://github.com/${m[1]}/pull/1` }, 201);
+    if (/^\/repos\/[^/]+\/[^/]+\/pulls\/\d+$/.test(p) && method === "PATCH") return this.json({});
     if ((m = /^\/repos\/([^/]+\/[^/]+)\/commits\/([0-9a-f]{40})$/.exec(p))) {
       const info = this.commitInfo.get(`${m[1].toLowerCase()}@${m[2]}`);
       return info ? this.json({ sha: m[2], author: info.login ? { login: info.login } : null, commit: { verification: { verified: info.verified } } }) : this.json({ message: "Not Found" }, 404);

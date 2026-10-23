@@ -501,7 +501,10 @@ app.post("/app/agents/:id/credit", async (c) => {
 });
 
 // Workflows: let an agent change .github/workflows (needs the Workflows permission on its App).
+// Workflow files run with the repo's secrets, so only a signed-in human in the dashboard can
+// turn this on: a `hug` account key lives on the machine agents run on and isn't accepted.
 app.post("/app/agents/:id/workflows", async (c) => {
+  if ((c.req.header("authorization") ?? "").startsWith("Bearer hug_")) return c.text("Turn this on from the dashboard.", 403);
   const account = await currentAccount(c);
   if (!account) return c.redirect("/login?next=/app", 302);
   if (!sameOrigin(c)) return c.text("Bad origin.", 403);
@@ -1097,6 +1100,9 @@ app.post("/v1/token", async (c) => {
       author: minted.named && bot ? { name: agent.name, email: bot.email } : { name: agent.name, email: agent.email },
       identity: bot?.login ?? null,
       named: minted.named,
+      // The agent has its own App but minting through it failed, so this token acts as the shared
+      // bot: GitHub can't tell this agent apart for this run. Surfaced instead of hidden.
+      ...(minted.fallback && { fallback: true, warning: `Minting through ${agent.id}'s own GitHub App failed; this token acts as the shared App.` }),
       // Commit as the app's bot user but with the agent's name, so the log reads
       // "orbit" with the app avatar; the human stays on the Accountable: trailer.
       git_author: bot ? { name: agent.name, email: bot.email } : null,
