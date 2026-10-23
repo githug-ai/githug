@@ -501,7 +501,10 @@ app.post("/app/agents/:id/credit", async (c) => {
 });
 
 // Workflows: let an agent change .github/workflows (needs the Workflows permission on its App).
+// Workflow files run with the repo's secrets, so only a signed-in human in the dashboard can
+// turn this on: a `hug` account key lives on the machine agents run on and isn't accepted.
 app.post("/app/agents/:id/workflows", async (c) => {
+  if ((c.req.header("authorization") ?? "").startsWith("Bearer hug_")) return c.text("Turn this on from the dashboard.", 403);
   const account = await currentAccount(c);
   if (!account) return c.redirect("/login?next=/app", 302);
   if (!sameOrigin(c)) return c.text("Bad origin.", 403);
