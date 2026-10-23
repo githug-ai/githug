@@ -25,6 +25,7 @@ export interface GatewayEnv {
   GITHUB_OAUTH_CLIENT_ID?: string;
   GITHUB_OAUTH_CLIENT_SECRET?: string;
   GATEWAY_ENC_KEY?: string; // base64-encoded 32 bytes; AES-GCM key for gateway_users.oauth_*
+  IP_HASH_SALT?: string; // optional; keys the audit-log IP hash (defaults to GATEWAY_ENC_KEY)
 }
 
 export interface AgentRow {
@@ -97,6 +98,21 @@ function b64url(input: ArrayBuffer | Uint8Array | string): string {
 export async function sha256Hex(s: string): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * The requester's IP for the audit log, as a keyed hash (HMAC-SHA256 under GATEWAY_ENC_KEY, or
+ * IP_HASH_SALT when set), truncated. Keyed so the log can't be reversed by hashing every IPv4
+ * address; stable so one address still correlates across rows. Rows written before this keep
+ * their old unkeyed hash.
+ */
+export async function hashIp(env: GatewayEnv, ip: string): Promise<string> {
+  if (!ip || ip === "unknown") return "";
+  const secret = env.IP_HASH_SALT || env.GATEWAY_ENC_KEY;
+  if (!secret) return (await sha256Hex(ip)).slice(0, 24);
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(`ip-hash:${secret}`), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(ip));
+  return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 24);
 }
 
 /** A new agent bearer key. Prefix makes it greppable in secret scanners. */

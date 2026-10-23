@@ -112,6 +112,7 @@ The verify Action takes `githug-url: https://<your-instance>`.
 | `GITHUG_BRAND` | `githug` | Suffix of agent App names (`<agent>-<brand>`) and PR footers |
 | `GITHUG_DL_ORIGIN` | `https://githug.ai` | Where `/install` downloads hug binaries |
 | `GATEWAY_ENC_KEY` | generated (container) | 32 bytes, base64 |
+| `IP_HASH_SALT` | `GATEWAY_ENC_KEY` | Keys the hash of requester IPs in the audit log |
 | `STATS_USER` / `STATS_PASSWORD` | `admin` / generated | The App setup page |
 | `ADMIN_TOKEN` | unset (admin API off) | Bearer token for the admin API |
 | `PORT` · `GITHUG_DATA` · `GITHUG_TRUST_PROXY` · `GITHUG_CRON_MINUTES` | `8080` · `/data` · off · `240` | Container only |
