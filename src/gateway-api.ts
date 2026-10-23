@@ -351,7 +351,6 @@ export async function createAgent(
   const created = new Date().toISOString();
   const permissions = input.permissions ?? null;
   const email = input.email?.trim() || agentEmail(input.id);
-  await db
   const credit = !!input.credit_human;
   await db
     .prepare("INSERT INTO gateway_agents (id,name,key_hash,repos,accountable,accountable_id,created,disabled,permissions,email,account_id,parent,depth,credit_human) VALUES (?,?,?,?,?,?,?,0,?,?,?,?,?,?)")
@@ -599,9 +598,9 @@ export async function upsertGatewayUser(
 }
 
 /**
- * The PR-surface credential for the next B1.2 slice (opening PRs/comments/reviews as the
- * accountable human, per docs/ATTRIBUTION.md). Not called by anything yet. Refreshes
- * automatically when the stored token is within 5 minutes of expiry.
+ * The PR-surface credential: opens PRs as the accountable human (openPullRequest; see
+ * docs/ATTRIBUTION.md). Refreshes automatically when the stored token is within 5 minutes
+ * of expiry.
  */
 export async function getUserToken(env: GatewayEnv, who: string | Actor): Promise<string | null> {
   const actor = typeof who === "string" ? { login: who } : who;
