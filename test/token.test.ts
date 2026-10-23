@@ -177,3 +177,18 @@ test("when an agent's own App can't mint, the response says it fell back to the 
   assert.match(j.warning, /orbit's own GitHub App failed; this token acts as the shared App/);
   assert.ok(!JSON.stringify(j).includes("Not Found"), "GitHub's error text stays in the server log");
 });
+
+test("a PR opened as the agent says when it fell back to the shared App", async (t) => {
+  const { env, auth } = await setup(t);
+  const open = async () => (await (await call(env, "POST", "/v1/pr", { body: { repo: "ana/api", head: "x", base: "main", title: "t", as: "agent" }, headers: auth })).json()) as any;
+  const plain = await open();
+  assert.equal(plain.number, 1);
+  assert.equal(plain.fallback, undefined, "no warning for an agent without its own App");
+  await env.DB.prepare("INSERT INTO gateway_apps (agent_id,app_id,slug,owner_login,owner_type,private_key,bot_id,installation_id,installation_login,created) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .bind("orbit", 55, "orbit-githug", "ana", "User", await gw.encryptSecret(env, env.GITHUB_APP_PRIVATE_KEY), 77, 9999, "ana", new Date().toISOString())
+    .run();
+  const j = await open();
+  assert.equal(j.opened_as, "agent");
+  assert.equal(j.fallback, true);
+  assert.match(j.warning, /orbit's own GitHub App failed; this PR was opened as the shared App/);
+});

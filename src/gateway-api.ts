@@ -1245,6 +1245,9 @@ export interface OpenedPr {
   number: number;
   url: string;
   opened_as: "human" | "agent";
+  /** Set when the PR was opened with a token from the shared App because the agent's own App failed to mint. */
+  fallback?: true;
+  warning?: string;
 }
 
 export async function openPullRequest(
@@ -1256,7 +1259,8 @@ export async function openPullRequest(
   // as=agent: the agent's bot is the author, so its human can still approve the PR when
   // branch protection requires a review (GitHub won't let authors approve their own).
   const userToken = p.as !== "agent" && agent.accountable ? await getUserToken(env, agent.accountable).catch(() => null) : null;
-  const token = userToken ?? (await mintForAgent(env, agent, p.repo, { pull_requests: "write", issues: "write", metadata: "read" })).token;
+  const minted = userToken ? null : await mintForAgent(env, agent, p.repo, { pull_requests: "write", issues: "write", metadata: "read" });
+  const token = userToken ?? minted!.token;
   const pr = await gh(`/repos/${p.repo}/pulls`, token, {
     method: "POST",
     body: JSON.stringify({ title: p.title, head: p.head, base: p.base, draft: p.draft, body: p.body + prFooter(p.repo, null, agent, p.run) }),
@@ -1268,7 +1272,12 @@ export async function openPullRequest(
   await env.DB.prepare("INSERT INTO gateway_actions (repo,kind,ref,agent_id,chain,run,credential,created) VALUES (?,?,?,?,?,?,?,?)")
     .bind(p.repo, "pr_open", String(pr.number), agent.id, JSON.stringify([`user:${agent.accountable}`, `agent:${agent.id}`]), p.run, openedAs === "human" ? "user" : "installation", new Date().toISOString())
     .run();
-  return { number: pr.number, url: pr.html_url, opened_as: openedAs };
+  return {
+    number: pr.number,
+    url: pr.html_url,
+    opened_as: openedAs,
+    ...(minted?.fallback && { fallback: true as const, warning: `Minting through ${agent.id}'s own GitHub App failed; this PR was opened as the shared App.` }),
+  };
 }
 
 export type VerifyPullResult =
