@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeEnv, call, withGitHub, signIn, repo } from "./helpers.ts";
+import * as gw from "../src/gateway-api.ts";
 
 async function setup(t: any) {
   const gh = withGitHub(t);
@@ -159,4 +160,35 @@ test("/v1/trailers follows the agent's settings as they are now, without minting
   assert.equal((await trailers({ repo: "ana/api" }, { authorization: "Bearer ghg_nope" })).status, 401);
   await call(env, "POST", "/v1/agents/orbit/disable", { headers: s.bearer });
   assert.equal((await trailers({ repo: "ana/api" })).status, 403);
+});
+
+test("when an agent's own App can't mint, the response says it fell back to the shared App", async (t) => {
+  const { env, auth } = await setup(t);
+  const plain = (await (await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: auth })).json()) as any;
+  assert.equal(plain.fallback, undefined, "no warning for an agent that never had its own App");
+  // orbit has an App installed under an installation GitHub doesn't know, so its mint fails.
+  await env.DB.prepare("INSERT INTO gateway_apps (agent_id,app_id,slug,owner_login,owner_type,private_key,bot_id,installation_id,installation_login,created) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .bind("orbit", 55, "orbit-githug", "ana", "User", await gw.encryptSecret(env, env.GITHUB_APP_PRIVATE_KEY), 77, 9999, "ana", new Date().toISOString())
+    .run();
+  const j = (await (await call(env, "POST", "/v1/token", { body: { repo: "ana/api" }, headers: auth })).json()) as any;
+  assert.ok(j.token, "the shared App still mints");
+  assert.equal(j.named, false);
+  assert.equal(j.fallback, true);
+  assert.match(j.warning, /orbit's own GitHub App failed; this token acts as the shared App/);
+  assert.ok(!JSON.stringify(j).includes("Not Found"), "GitHub's error text stays in the server log");
+});
+
+test("a PR opened as the agent says when it fell back to the shared App", async (t) => {
+  const { env, auth } = await setup(t);
+  const open = async () => (await (await call(env, "POST", "/v1/pr", { body: { repo: "ana/api", head: "x", base: "main", title: "t", as: "agent" }, headers: auth })).json()) as any;
+  const plain = await open();
+  assert.equal(plain.number, 1);
+  assert.equal(plain.fallback, undefined, "no warning for an agent without its own App");
+  await env.DB.prepare("INSERT INTO gateway_apps (agent_id,app_id,slug,owner_login,owner_type,private_key,bot_id,installation_id,installation_login,created) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .bind("orbit", 55, "orbit-githug", "ana", "User", await gw.encryptSecret(env, env.GITHUB_APP_PRIVATE_KEY), 77, 9999, "ana", new Date().toISOString())
+    .run();
+  const j = await open();
+  assert.equal(j.opened_as, "agent");
+  assert.equal(j.fallback, true);
+  assert.match(j.warning, /orbit's own GitHub App failed; this PR was opened as the shared App/);
 });
